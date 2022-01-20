@@ -132,17 +132,14 @@ def expH_block_factors_from_list(beta, L0, lnZ=0):
 	return O @ conjugateBlocks(M) @ (~O)
 	
 def expH_from_list(beta, L0, lnZ=0, forceReal=False):
-	RESULT = I^(n+2)
-	if forceReal:
-		RESULT = I^(n+1)
+	RESULT = I^(n+1)
 	for L in L0:
 		for (w0,Phi0) in L:
 			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C))))))
 			if forceReal:
 				RESULT = ((U+(~U))/2) @ RESULT # non-unitary extraction of real part
 			else:
-				O = h^(I^int(n+1))
-				RESULT = O @ conjugateBlocks(U) @ (~O) @ RESULT # unitary extraction of real part
+				RESULT = U @ RESULT # unitary extraction of real part
 	return RESULT
 	
 #######################################
