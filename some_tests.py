@@ -8,17 +8,12 @@ from colored import fg, bg, attr
 
 from qiskit.opflow import I, X, Z, Plus, Minus, H, Zero, One
 from qiskit.compiler import transpile
-#from qiskit.quantum_info.states.statevector import Statevector
-#from qiskit.quantum_info import partial_trace, DensityMatrix
-#
 from qiskit import QuantumRegister, QuantumCircuit
 from qiskit import Aer, assemble
 
-
-
 ####################################### input structure
 
-C = [[0,1]] # clique structure, 2-var chain
+C = [[0]] # clique structure, 2-var chain
 #C = [[0,1],[1,2],[2,3],[0,3]] # clique structure, 4-var circle
 
 n = len(np.unique(np.array(C).flatten())) # number of (qu)bits
@@ -46,8 +41,12 @@ def merge_all(L):
 		R = merge(R)
 	return R[0]
 	
+turquoise = '#179c7d'
+orange = '#eb6a0a'
+blue = '#1f82c0'
+	
 def format_head(h,t):
-	return fg('#179c7d')+attr('bold')+h+attr('reset')+': '+fg('white')+attr('bold')+t+attr('reset')
+	return fg(turquoise)+attr('bold')+h+attr('reset')+': '+fg('white')+attr('bold')+t+attr('reset')
 	
 def format_val(val):
 	if type(val) is int:
@@ -58,9 +57,9 @@ def format_val(val):
 def format_math(math):
 	brackets  = ['(',')']
 	operators = ['+','-','*','/','_','^']
-	mcol = '#1f82c0'
+	mcol = turquoise
 	bcol = 'white'
-	ocol = '#eb6a0a'
+	ocol = orange
 	for b in brackets:
 		math = math.replace(b,fg(bcol)+b+fg(mcol))
 	for o in operators:
@@ -133,7 +132,7 @@ def expH_from_list_blocked(beta, L0, lnZ=0):
 	O = H^(I^int(n+1+np.log2(d)))
 	return O @ conjugateBlocks(M) @ (~O)
 	
-def expH_from_list_algebraic_real(beta, L0, lnZ=0):
+def expH_from_list_real_algebraic(beta, L0, lnZ=0):
 	RESULT = I^(n+1)
 	for L in L0:
 		for (w0,Phi0) in L:
@@ -143,8 +142,6 @@ def expH_from_list_algebraic_real(beta, L0, lnZ=0):
 	
 def expH_from_list_unreal(beta, L0, lnZ=0):
 	RESULT = I^(n+1)
-	#if not forceReal:
-	#	RESULT = I^(n+1+d) # one ancille per factor
 	for L in L0:
 		for (w0,Phi0) in L:
 			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C))))))
@@ -160,7 +157,7 @@ def expH_from_list_real_RUL(beta, L0, lnZ=0):
 	i = 0 # enumerate 0..d-1
 	for ii,L in enumerate(L0):
 		for jj,(w0,Phi0) in enumerate(L):
-			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C))))))
+			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(0.5*w0 - (lnZ/len(C))))))
 			
 			u = conjugateBlocks(U).to_circuit().to_instruction(label='U_C'+str(ii)+'_y'+str(jj))
 			
@@ -177,19 +174,19 @@ def expH_from_list_real_RUL(beta, L0, lnZ=0):
 
 HAM,L  = genHamiltonian() # L is list of factors
 beta = 1
-lnZ = np.log(np.trace(expm(-beta*HAM.to_matrix())))
 
 R0   = expm(-beta*HAM.to_matrix()) # exp(-βH) via numpy for debugging
+lnZ = np.log(np.trace(R0**0.5))
 
 #######################################
 
 print("NODES ("+format_math('n')+"):",n," PARAMETERS ("+format_math('d')+"):",d)
 
 #######################################
-print(format_head("CHECK 1","expH_from_list_algebraic_real(..);"))
+print(format_head("CHECK 1","expH_from_list_real_algebraic(..);"))
 print("  * This shows that Eq.(3) from the draft works.")
 
-R1   = expH_from_list_algebraic_real(beta, L)
+R1   = expH_from_list_real_algebraic(beta, L)
 r1   = R1.to_matrix()
 
 print("  * "+format_math('l2')+"-Error between",format_math('exp(-βH)'),"and upper left")
@@ -241,31 +238,7 @@ print("    first",format_math('d'),"diagonal blocks of block factorization:", fo
 
 #######################################
 print()
-print(format_head("CHECK 4","uniEmbedding(genPhi(..));"))
-print("  * This shows that the transpiled circuit for a rather simple")
-print("    unitary embedding of a",format_math('Φ')+"-matrix requires a \"large\" circuit.")
-
-Q = uniEmbedding(genPhi(C[0],[1,0]))
-UU = transpile(Q.to_circuit(), basis_gates=['cx','id','rz','sx','x'], optimization_level=3)
-
-print("  * Number of gates:", format_val(len(UU)))
-print("  * Depth:", format_val(UU.depth()))
-
-#######################################
-print()
-print(format_head("CHECK 5","genUphi(uniEmbedding(genPhi(..)), genPhaseFactors(..));"))
-print("  * This shows that the transpiled circuit for any",format_math('U^j_(γ^y)'))
-print("    unitary operator requires an \"even larger\" circuit.")
-
-Q = genUphi(uniEmbedding(genPhi(C[0],[1,0])), genPhaseFactors(np.exp(-0.5)))
-UU = transpile(Q.to_circuit(), basis_gates=['cx','id','rz','sx','x'], optimization_level=3)
-
-print("  * Number of gates:", format_val(len(UU)))
-print("  * Depth:", format_val(UU.depth()))
-
-#######################################
-print()
-print(format_head("CHECK 6","FULL CIRCUIT"))
+print(format_head("CHECK 4","FULL CIRCUIT"))
 print("  * This shows size of circuit from CHECK 2b.")
 
 UU = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=3)
@@ -275,7 +248,16 @@ print("  * Depth:", format_val(UU.depth()))
 
 #######################################
 print()
-print(format_head("CHECK 7","SIMULATION"))
+print(format_head("CHECK 5","SIMULATION"))
 
 sim = Aer.get_backend('aer_simulator')
 j = sim.run(assemble(UU,shots=100000))
+R = j.result().get_counts()
+
+a = R['0000'] + R['0010']
+b = R['0001'] + R['0011']
+Z = a+b
+print(a/Z,b/Z)
+
+lnZ = np.log(np.trace(R0))
+print(np.diag(R0/np.exp(lnZ)))
