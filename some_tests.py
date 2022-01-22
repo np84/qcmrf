@@ -13,8 +13,7 @@ from qiskit import Aer, assemble
 
 ####################################### input structure
 
-C = [[0]] # clique structure, 2-var chain
-#C = [[0,1],[1,2],[2,3],[0,3]] # clique structure, 4-var circle
+C = [[0,1],[1,2],[2,3],[0,3]] # clique structure, 4-var circle
 
 n = len(np.unique(np.array(C).flatten())) # number of (qu)bits
 d = 0
@@ -93,7 +92,7 @@ def genHamiltonian():
 		Ly = []
 		for r,y in enumerate(list(itertools.product([0, 1], repeat=len(c)))):
 			Phi = genPhi(c,y)
-			theta = -1*(i+1) #np.random.uniform() # we need a negative MRF
+			theta = -0.1*(i+1) #np.random.uniform() # we need a negative MRF
 			R += Phi * -theta
 			Ly.append((theta,Phi)) # list of all factors that belong to same clique
 			i = i + 1
@@ -148,7 +147,7 @@ def expH_from_list_unreal(beta, L0, lnZ=0):
 			RESULT = U @ RESULT # unitary extraction of real part
 	return RESULT
 
-def expH_from_list_real_RUL(beta, L0, lnZ=0):
+def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	qr = QuantumRegister(n+1+d, 'q') # one ancille per factor
 	circ = QuantumCircuit(n+1+d,n+1+d)
 	for i in range(n+1):
@@ -157,7 +156,10 @@ def expH_from_list_real_RUL(beta, L0, lnZ=0):
 	i = 0 # enumerate 0..d-1
 	for ii,L in enumerate(L0):
 		for jj,(w0,Phi0) in enumerate(L):
-			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(0.5*w0 - (lnZ/len(C))))))
+			w = 0.5*w0 - (lnZ/len(C))
+			assert w < 0
+			
+			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*w)))
 			
 			u = conjugateBlocks(U).to_circuit().to_instruction(label='U_C'+str(ii)+'_y'+str(jj))
 			
@@ -176,70 +178,45 @@ HAM,L  = genHamiltonian() # L is list of factors
 beta = 1
 
 R0   = expm(-beta*HAM.to_matrix()) # exp(-βH) via numpy for debugging
-lnZ = np.log(np.trace(R0**0.5))
 
 #######################################
 
 print("NODES ("+format_math('n')+"):",n," PARAMETERS ("+format_math('d')+"):",d)
 
 #######################################
-print(format_head("CHECK 1","expH_from_list_real_algebraic(..);"))
-print("  * This shows that Eq.(3) from the draft works.")
 
-R1   = expH_from_list_real_algebraic(beta, L)
-r1   = R1.to_matrix()
+if False:
+	print()
+	print(format_head("CHECK 3","expH_from_list_blocked(..);"))
+	print("  * This shows that the new block factorization with ("+format_math('1+log_2(d)'))
+	print("    extra ancillas) has correct values of each factor on the diagonal.")
 
-print("  * "+format_math('l2')+"-Error between",format_math('exp(-βH)'),"and upper left")
-print("    block of",format_math('PROD_j REAL(U^j_(γ^y))')+":", format_val(np.linalg.norm(R0 - r1[:dim,:dim], ord=2)))
+	R3   = expH_from_list_blocked(beta, L)
+	r3   = R3.to_matrix()
+
+	r = np.eye(2*dim) # 2*dim = 2**(n+1)
+	for i in range(d):
+		a = (i)   * (2*dim)
+		b = (i+1) * (2*dim)
+		B = r3[a:b,a:b]
+		r = B @ r
+
+	print("  * "+format_math('l2')+"-Error between",format_math('exp(-βH)'),"and the product over")
+	print("    first",format_math('d'),"diagonal blocks of block factorization:", format_val(np.linalg.norm(R0 - r[:dim,:dim], ord=2)))
 
 #######################################
 print()
-print(format_head("CHECK 2","expH_from_list_unreal(..);"))
-print("  * This shows that Eq. (3) from the draft does *NOT*")
-print("    work when we do not extract real parts.")
-
-R2   = expH_from_list_unreal(beta, L)
-r2   = R2.to_matrix()
-
-print("  * "+format_math('l2')+"-Error between",format_math('exp(-βH)'),"and upper left")
-print("    block of",format_math('PROD_j U^j_(γ^y)')+":", format_val(np.linalg.norm(R0 - r2[:dim,:dim], ord=2)))
-
-#######################################
-print()
-print(format_head("CHECK 2b","expH_from_list_real_RUL(..);"))
+print(format_head("BUILD CIRCUIT","expH_from_list_real_RUS(..);"))
 print("  * Eq. (3) with RUL")
+print("  * Ideal case with partition function = 1")
 
-R2b   = expH_from_list_real_RUL(beta, L, lnZ)
-print(R2b)
-r2b   = R2.to_matrix()
+lnZ = np.log(np.trace(R0**0.5))
 
-print("  * "+format_math('l2')+"-Error between",format_math('exp(-βH)'),"and upper left")
-print("    block of",format_math('PROD_j U^j_(γ^y)')+":", format_val(np.linalg.norm(R0 - r2[:dim,:dim], ord=2)))
-
-#######################################
+R2b   = expH_from_list_real_RUS(beta, L, lnZ)
 
 print()
-print(format_head("CHECK 3","expH_from_list_blocked(..);"))
-print("  * This shows that the new block factorization with ("+format_math('1+log_2(d)'))
-print("    extra ancillas) has correct values of each factor on the diagonal.")
-
-R3   = expH_from_list_blocked(beta, L)
-r3   = R3.to_matrix()
-
-r = np.eye(2*dim) # 2*dim = 2**(n+1)
-for i in range(d):
-	a = (i)   * (2*dim)
-	b = (i+1) * (2*dim)
-	B = r3[a:b,a:b]
-	r = B @ r
-
-print("  * "+format_math('l2')+"-Error between",format_math('exp(-βH)'),"and the product over")
-print("    first",format_math('d'),"diagonal blocks of block factorization:", format_val(np.linalg.norm(R0 - r[:dim,:dim], ord=2)))
-
-#######################################
-print()
-print(format_head("CHECK 4","FULL CIRCUIT"))
-print("  * This shows size of circuit from CHECK 2b.")
+print(format_head("TRANSPILATION","transpile(..)"))
+print("  * For {cx, id, rz, sx, x} with opt-level 3")
 
 UU = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=3)
 
@@ -248,16 +225,39 @@ print("  * Depth:", format_val(UU.depth()))
 
 #######################################
 print()
-print(format_head("CHECK 5","SIMULATION"))
+print(format_head("SIMULATION","Aer.get_backend(..).run(..)"))
+print("  * With aer_simulator and 300000 shots")
 
 sim = Aer.get_backend('aer_simulator')
-j = sim.run(assemble(UU,shots=100000))
+j = sim.run(assemble(UU,shots=300000))
 R = j.result().get_counts()
 
-a = R['0000'] + R['0010']
-b = R['0001'] + R['0011']
-Z = a+b
-print(a/Z,b/Z)
+Y = list(itertools.product([0, 1], repeat=n))
+
+P = np.zeros(dim)
+
+for i,y in enumerate(Y):
+	s = ''
+	for b in y:
+		s += str(b)
+	s0 = '0'*d + '0' + s
+	s1 = '0'*d + '1' + s
+	P[i] = R[s0] + R[s1]
+	
+Z = np.sum(P)
+P = P/Z
+
+print('CIRCUIT (300k samples)',P)
 
 lnZ = np.log(np.trace(R0))
-print(np.diag(R0/np.exp(lnZ)))
+Q = np.diag(R0/np.exp(lnZ))
+
+print('GROUND TRUTH',Q)
+
+def fidelity(P,Q):
+	F = 0
+	for i in range(len(P)):
+		F += np.sqrt(P[i] * Q[i])
+	return F**2
+	
+print('FIDELITY',fidelity(P,Q))
