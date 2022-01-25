@@ -11,20 +11,7 @@ from qiskit.compiler import transpile
 from qiskit import QuantumRegister, QuantumCircuit
 from qiskit import Aer, assemble
 
-####################################### input structure
-
-C = [[0]] # clique structure, 4-var circle
-#C = [[0,1],[1,2],[2,3],[0,3]] # clique structure, 4-var circle
-
-n = len(np.unique(np.array(C).flatten())) # number of (qu)bits
-d = 0
-for c in C:
-	m = len(c)
-	d = d + (2**m)
-	
-dim = 2**n
-
-####################################### utility funcs
+#######################################
 
 def grouped(iterable, n):
 	return zip(*[iter(iterable)]*n)
@@ -175,90 +162,49 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 #######################################
 
-HAM,L  = genHamiltonian() # L is list of factors
-beta = 1
+RUNS = [[[0]],[[0,1]],[[0,1],[0]],[[0,1],[1,2]]]
 
-R0   = expm(-beta*HAM.to_matrix()) # exp(-βH) via numpy for debugging
+for C in RUNS:
+	for II in range(10):
+		n = len(np.unique(np.array(C).flatten())) # number of (qu)bits
+		d = 0
+		for c in C:
+			m = len(c)
+			d = d + (2**m)
+			
+		dim = 2**n
 
-#######################################
+		HAM,LL = genHamiltonian() # L is list of factors
+		beta = 1
+		R0  = expm(-beta*HAM.to_matrix()) # exp(-βH) via numpy for debugging
+		R2b = expH_from_list_real_RUS(beta, LL)
+		OL  = 3
+		UU  = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=OL)
+		N   = 400000
+		sim = Aer.get_backend('aer_simulator')
+		j   = sim.run(assemble(UU,shots=N))
+		R   = j.result().get_counts()
+		Y   = list(itertools.product([0, 1], repeat=n))
+		P   = np.zeros(dim)
 
-print("NODES ("+format_math('n')+"):",n," PARAMETERS ("+format_math('d')+"):",d)
+		for i,y in enumerate(Y):
+			s = ''
+			for b in y:
+				s += str(b)
+			s0 = '0'*d + '0' + s
+			s1 = '0'*d + '1' + s
+			P[i] = R[s0] + R[s1]
+			
+		ZZ = np.sum(P)
+		P = P/ZZ
 
-#######################################
+		lnZ = np.log(np.trace(R0))
+		Q = np.diag(R0/np.exp(lnZ))
 
-if False:
-	print()
-	print(format_head("CHECK 3","expH_from_list_blocked(..);"))
-	print("  * This shows that the new block factorization with ("+format_math('1+log_2(d)'))
-	print("    extra ancillas) has correct values of each factor on the diagonal.")
-
-	R3   = expH_from_list_blocked(beta, L)
-	r3   = R3.to_matrix()
-
-	r = np.eye(2*dim) # 2*dim = 2**(n+1)
-	for i in range(d):
-		a = (i)   * (2*dim)
-		b = (i+1) * (2*dim)
-		B = r3[a:b,a:b]
-		r = B @ r
-
-	print("  * "+format_math('l2')+"-Error between",format_math('exp(-βH)'),"and the product over")
-	print("    first",format_math('d'),"diagonal blocks of block factorization:", format_val(np.linalg.norm(R0 - r[:dim,:dim], ord=2)))
-
-#######################################
-print()
-print(format_head("BUILD CIRCUIT","expH_from_list_real_RUS(..);"))
-print("  * Eq. (3) with RUL")
-
-R2b   = expH_from_list_real_RUS(beta, L)
-
-OL = 3
-print()
-print(format_head("TRANSPILATION","transpile(..)"))
-print("  * For {cx, id, rz, sx, x} with opt-level "+str(OL))
-
-UU = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=OL)
-
-print("  * Number of gates:", format_val(len(UU)))
-print("  * Depth:", format_val(UU.depth()))
-
-#######################################
-N = 400000
-print()
-print(format_head("SIMULATION","Aer.get_backend(..).run(..)"))
-print("  * With aer_simulator and "+str(N)+" shots")
-
-sim = Aer.get_backend('aer_simulator')
-j = sim.run(assemble(UU,shots=N))
-R = j.result().get_counts()
-
-Y = list(itertools.product([0, 1], repeat=n))
-
-P = np.zeros(dim)
-
-for i,y in enumerate(Y):
-	s = ''
-	for b in y:
-		s += str(b)
-	s0 = '0'*d + '0' + s
-	s1 = '0'*d + '1' + s
-	P[i] = R[s0] + R[s1]
-	
-Z = np.sum(P)
-P = P/Z
-
-print('CIRCUIT ('+str(N)+' samples)',P)
-
-lnZ = np.log(np.trace(R0))
-Q = np.diag(R0/np.exp(lnZ))
-
-print('GROUND TRUTH',Q)
-
-def fidelity(P,Q):
-	F = 0
-	for i in range(len(P)):
-		F += np.sqrt(P[i] * Q[i])
-	return F**2
-	
-print('FIDELITY',fidelity(P,Q))
-print('SUCCESS RATE',Z/N)
+		def fidelity(P,Q):
+			F = 0
+			for i in range(len(P)):
+				F += np.sqrt(P[i] * Q[i])
+			return F**2
+			
+		print(n,d,np.real(fidelity(P,Q)),ZZ/N,len(UU),UU.depth(),N)
