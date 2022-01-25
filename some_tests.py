@@ -208,28 +208,27 @@ if False:
 print()
 print(format_head("BUILD CIRCUIT","expH_from_list_real_RUS(..);"))
 print("  * Eq. (3) with RUL")
-print("  * Ideal case with partition function = 1")
 
-lnZ = np.log(np.trace(R0**0.5))
+R2b   = expH_from_list_real_RUS(beta, L)
 
-R2b   = expH_from_list_real_RUS(beta, L, lnZ)
-
+OL = 3
 print()
 print(format_head("TRANSPILATION","transpile(..)"))
-print("  * For {cx, id, rz, sx, x} with opt-level 3")
+print("  * For {cx, id, rz, sx, x} with opt-level "+str(OL))
 
-UU = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=3)
+UU = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=OL)
 
 print("  * Number of gates:", format_val(len(UU)))
 print("  * Depth:", format_val(UU.depth()))
 
 #######################################
+N = 400000
 print()
 print(format_head("SIMULATION","Aer.get_backend(..).run(..)"))
-print("  * With aer_simulator and 300000 shots")
+print("  * With aer_simulator and "+str(N)+" shots")
 
 sim = Aer.get_backend('aer_simulator')
-j = sim.run(assemble(UU,shots=300000))
+j = sim.run(assemble(UU,shots=N))
 R = j.result().get_counts()
 
 Y = list(itertools.product([0, 1], repeat=n))
@@ -247,7 +246,7 @@ for i,y in enumerate(Y):
 Z = np.sum(P)
 P = P/Z
 
-print('CIRCUIT (300k samples)',P)
+print('CIRCUIT ('+str(N)+' samples)',P)
 
 lnZ = np.log(np.trace(R0))
 Q = np.diag(R0/np.exp(lnZ))
@@ -261,3 +260,4 @@ def fidelity(P,Q):
 	return F**2
 	
 print('FIDELITY',fidelity(P,Q))
+print('SUCCESS RATE',Z/N)
