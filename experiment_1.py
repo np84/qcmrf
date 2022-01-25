@@ -170,7 +170,7 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
 
-logfile = open("logfile.csv", "w")
+logfile = open("experiment_1_results.csv", "w")
 
 for C in RUNS:
 	for II in range(10):
