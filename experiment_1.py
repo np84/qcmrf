@@ -213,14 +213,17 @@ for C in RUNS:
 				elif ww > wmax:
 					wmax = ww
 
-		for i,y in enumerate(Y):
-			s = ''
-			for b in y:
-				s += str(b)
-			s0 = '0'*d + '0' + s
-			s1 = '0'*d + '1' + s
-			P[i] = R[s0] + R[s1]
-			
+		try:
+			for i,y in enumerate(Y):
+				s = ''
+				for b in y:
+					s += str(b)
+				s0 = '0'*d + '0' + s
+				s1 = '0'*d + '1' + s
+				P[i] = R[s0] + R[s1]
+		except:
+			continue
+		
 		ZZ = np.sum(P)
 		P = P/ZZ
 
