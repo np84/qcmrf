@@ -13,6 +13,12 @@ from qiskit import Aer, assemble
 
 #######################################
 
+def fidelity(P,Q):
+	F = 0
+	for i in range(len(P)):
+		F += np.sqrt(P[i] * Q[i])
+	return F**2
+
 def grouped(iterable, n):
 	return zip(*[iter(iterable)]*n)
 	
@@ -80,7 +86,7 @@ def genHamiltonian():
 		Ly = []
 		for r,y in enumerate(list(itertools.product([0, 1], repeat=len(c)))):
 			Phi = genPhi(c,y)
-			theta = -0.1*(i+1) #np.random.uniform() # we need a negative MRF
+			theta = np.random.uniform(low=-5.0,high=-0.001) # we need a negative MRF
 			R += Phi * -theta
 			Ly.append((theta,Phi)) # list of all factors that belong to same clique
 			i = i + 1
@@ -162,14 +168,19 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 #######################################
 
-RUNS = [[[0]],[[0,1]],[[0,1],[0]],[[0,1],[1,2]]]
+RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
+
+logfile = open("logfile.csv", "w")
 
 for C in RUNS:
 	for II in range(10):
 		n = len(np.unique(np.array(C).flatten())) # number of (qu)bits
 		d = 0
+		cmax = 0
 		for c in C:
 			m = len(c)
+			if m > cmax:
+				cmax = m
 			d = d + (2**m)
 			
 		dim = 2**n
@@ -186,6 +197,21 @@ for C in RUNS:
 		R   = j.result().get_counts()
 		Y   = list(itertools.product([0, 1], repeat=n))
 		P   = np.zeros(dim)
+		
+		
+		wmin = None
+		wmax = None
+		for l1 in LL:
+			for ww,ll in l1:
+				if wmin is None:
+					wmin = ww
+				elif ww < wmin:
+					wmin = ww
+				
+				if wmax is None:
+					wmax = ww
+				elif ww > wmax:
+					wmax = ww
 
 		for i,y in enumerate(Y):
 			s = ''
@@ -200,11 +226,9 @@ for C in RUNS:
 
 		lnZ = np.log(np.trace(R0))
 		Q = np.diag(R0/np.exp(lnZ))
-
-		def fidelity(P,Q):
-			F = 0
-			for i in range(len(P)):
-				F += np.sqrt(P[i] * Q[i])
-			return F**2
 			
-		print(n,d,np.real(fidelity(P,Q)),ZZ/N,len(UU),UU.depth(),N)
+		logs = str(n)+','+str(d)+','+str(len(C))+','+str(cmax)+','+str(np.real(fidelity(P,Q)))+','+str(ZZ/N)+','+str(len(UU))+','+str(UU.depth())+','+str(N)+','+str(wmin)+','+str(wmax)
+		print(logs)
+		logfile.write(logs+'\n')
+		
+logfile.close()
