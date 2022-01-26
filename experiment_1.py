@@ -170,7 +170,7 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
 
-logfile = open("experiment_1_results.csv", "w")
+logfile = open("results_experiment_1.csv", "w")
 
 for C in RUNS:
 	for II in range(10):
@@ -222,6 +222,9 @@ for C in RUNS:
 				s1 = '0'*d + '1' + s
 				P[i] = R[s0] + R[s1]
 		except:
+			logs = str(n)+','+str(d)+','+str(len(C))+','+str(cmax)+',?,0.0,'+str(len(UU))+','+str(UU.depth())+','+str(N)+','+str(wmin)+','+str(wmax)
+			print(logs)
+			logfile.write(logs+'\n')
 			continue
 		
 		ZZ = np.sum(P)
