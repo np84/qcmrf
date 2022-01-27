@@ -13,11 +13,20 @@ from qiskit import Aer, assemble
 
 #######################################
 
+# (1-H^2)^2 = F <=> sqrt(1-sqrt(F)) = H
+
 def fidelity(P,Q):
 	F = 0
 	for i in range(len(P)):
 		F += np.sqrt(P[i] * Q[i])
 	return F**2
+
+def KL(P,Q):
+	kl = 0
+	for i in range(len(P)):
+		if Q[i] > 0 and P[i] > 0:
+			kl += P[i] * np.log(P[i] / Q[i])
+	return kl
 
 def grouped(iterable, n):
 	return zip(*[iter(iterable)]*n)
@@ -168,10 +177,11 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 #######################################
 
-#RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
-RUNS = [[[0,1],[1,2],[2,3],[0,3]],[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
+RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
+#RUNS = [[[0,1],[1,2],[2,3],[0,3]],[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
 
 logfile = open("results_experiment_1.csv", "w")
+logfile.write('n,d,num_cliques,C_max,fidelity,KL,success_rate,num_gates,depth,shots,w_min,w_max\n')
 
 for C in RUNS:
 	for II in range(10):
@@ -199,7 +209,6 @@ for C in RUNS:
 		Y   = list(itertools.product([0, 1], repeat=n))
 		P   = np.zeros(dim)
 
-
 		wmin = None
 		wmax = None
 		for l1 in LL:
@@ -214,19 +223,17 @@ for C in RUNS:
 				elif ww > wmax:
 					wmax = ww
 
-		try:
-			for i,y in enumerate(Y):
-				s = ''
-				for b in y:
-					s += str(b)
-				s0 = '0'*d + '0' + s
-				s1 = '0'*d + '1' + s
-				P[i] = R[s0] + R[s1]
-		except:
-			logs = str(n)+','+str(d)+','+str(len(C))+','+str(cmax)+',?,0.0,'+str(len(UU))+','+str(UU.depth())+','+str(N)+','+str(wmin)+','+str(wmax)
-			print(logs)
-			logfile.write(logs+'\n')
-			continue
+		for i,y in enumerate(Y):
+			s = ''
+			for b in y:
+				s += str(b)
+			s0 = '0'*d + '0' + s
+			s1 = '0'*d + '1' + s
+
+			if s0 in R:
+				P[i] += R[s0]
+			if s1 in R:
+				P[i] += R[s1]
 
 		ZZ = np.sum(P)
 		P = P/ZZ
@@ -234,7 +241,7 @@ for C in RUNS:
 		lnZ = np.log(np.trace(R0))
 		Q = np.diag(R0/np.exp(lnZ))
 
-		logs = str(n)+','+str(d)+','+str(len(C))+','+str(cmax)+','+str(np.real(fidelity(P,Q)))+','+str(ZZ/N)+','+str(len(UU))+','+str(UU.depth())+','+str(N)+','+str(wmin)+','+str(wmax)
+		logs = str(n)+','+str(d)+','+str(len(C))+','+str(cmax)+','+str(np.real(fidelity(P,Q)))+','+str(np.real(KL(Q,P)))+','+str(ZZ/N)+','+str(len(UU))+','+str(UU.depth())+','+str(N)+','+str(wmin)+','+str(wmax)
 		print(logs)
 		logfile.write(logs+'\n')
 
