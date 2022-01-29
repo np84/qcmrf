@@ -194,7 +194,7 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	
 	# create empty main circuit with d+1 aux qubits
 	circ = QuantumCircuit(n+1+CL,n+1+CL)
-	for i in range(n+1):
+	for i in range(n):
 		circ.h(qr[i])
 		
 	circ.barrier(qr)
@@ -217,16 +217,17 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 		# add Hadamard to j-th aux qubit
 		circ.h(qr[n+1+i])
 		# add U**gamma circuit to main circuit
-		circ.append(u, [qr[n+1+i]]+[qr[j] for j in range(n+1)])
+		circ.append(u, [qr[j] for j in range(n+1)]+[qr[n+1+i]])
 		# add another Hadamard to aux qubit
 		circ.h(qr[n+1+i])
+		circ.measure([n+1+i],[n+1+i])
 		
 		circ.barrier(qr)
 
 		i = i + 1
 
 	# measure all qubits
-	circ.measure(range(n+1+CL),range(n+1+CL))
+	circ.measure(range(n+1),range(n+1))
 	return circ
 
 #######################################
