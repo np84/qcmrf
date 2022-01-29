@@ -126,7 +126,6 @@ def genPhaseFactors(ey):
 
 # compute unitary U**gamma = exp(U)
 def genUphi(U,phi):
-	print(phi)
 	RZ1 = (phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	RZ2 = (phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	assert np.isclose(phi[0], phi[1])
