@@ -129,7 +129,7 @@ def genUphi(U,phi):
 	print(phi)
 	RZ1 = (phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	RZ2 = (phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
-	assert phi[1] == phi[2]
+	assert phi[0] == phi[1]
 	assert U == ~U
 	return RZ1 @ U @ RZ1 @ U # ignored conjugate transpose of first U
 
