@@ -129,7 +129,9 @@ def genUphi(U,phi):
 	print(phi)
 	RZ1 = (phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	RZ2 = (phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
-	return RZ1 @ U @ RZ2 @ U # ignored conjugate transpose of first U
+	assert phi[1] == phi[2]
+	assert U == ~U
+	return RZ1 @ U @ RZ1 @ U # ignored conjugate transpose of first U
 
 # returns unitary if Eigenvalues of A are bounded by 1
 def uniEmbedding(A):
