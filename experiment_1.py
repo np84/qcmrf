@@ -168,9 +168,11 @@ def expH_from_list_unreal(beta, L0, lnZ=0):
 	return RESULT
 
 # core method
-# computes exp(-beta H) = 
+# computes exp(-beta H) = PROD_j exp(-beta w_j Phi_j) = PROD_j REAL( P**(beta w_j)(U_j) )
 def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	qr = QuantumRegister(n+1+d, 'q') # one aux for unitary embedding plus one aux per factor
+	
+	# create empty main circuit with d+1 aux qubits
 	circ = QuantumCircuit(n+1+d,n+1+d)
 	for i in range(n+1):
 		circ.h(qr[i])
@@ -181,16 +183,23 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 			w = 0.5*w0 - (lnZ/len(C)) # 0.5 => sqrt(exp(..))
 			assert w < 0
 
+			# compute U**gamma = P**(beta w_j)(U_j)
 			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*w)))
 
+			# Write U**gamma and ~U**gamma on diagonal of matrix, creates j-th aux qubit
+			# Create "instruction" which can be used in another circuit
 			u = conjugateBlocks(U).to_circuit().to_instruction(label='U_C'+str(ii)+'_y'+str(jj))
 
+			# add Hadamard to j-th aux qubit
 			circ.h(qr[n+1+i])
+			# add U**gamma circuit to main circuit
 			circ.append(u, [qr[j] for j in range(n+1)]+[qr[n+1+i]])
+			# add another Hadamard to aux qubit
 			circ.h(qr[n+1+i])
 
 			i = i + 1
 
+	# measure all qubits
 	circ.measure([qr[j] for j in range(n+1+d)],range(n+1+d))
 	return circ
 
