@@ -13,14 +13,16 @@ from qiskit import Aer, assemble
 
 #######################################
 
-# (1-H^2)^2 = F <=> sqrt(1-sqrt(F)) = H
-
+# Compute fidelity between probability mass functions, given by P and Q
+# P[i] and Q[i] contains probabilities for the i-th event
 def fidelity(P,Q):
 	F = 0
 	for i in range(len(P)):
 		F += np.sqrt(P[i] * Q[i])
 	return F**2
 
+# Compute Kullback-Leibler between probability mass functions, given by P and Q
+# P[i] and Q[i] contains probabilities for the i-th event
 def KL(P,Q):
 	kl = 0
 	for i in range(len(P)):
@@ -28,6 +30,7 @@ def KL(P,Q):
 			kl += P[i] * np.log(P[i] / Q[i])
 	return kl
 
+# Python helper for iterating over tuples of length n
 def grouped(iterable, n):
 	return zip(*[iter(iterable)]*n)
 
@@ -47,15 +50,18 @@ turquoise = '#179c7d'
 orange = '#eb6a0a'
 blue = '#1f82c0'
 
+# string formatting
 def format_head(h,t):
 	return fg(turquoise)+attr('bold')+h+attr('reset')+': '+fg('white')+attr('bold')+t+attr('reset')
 
+# string formatting
 def format_val(val):
 	if type(val) is int:
 		return fg('white')+attr('bold')+str(val)+attr('reset')
 	else:
 		return fg('white')+attr('bold')+np.format_float_scientific(val, precision=4)+attr('reset')
 
+# string formatting
 def format_math(math):
 	brackets  = ['(',')']
 	operators = ['+','-','*','/','_','^']
@@ -70,6 +76,8 @@ def format_math(math):
 
 ####################################### model funcs
 
+# compute 2**n X 2**n binary diaginal matrix D
+# D_ii is 1 if, for the i-th basis state x**(i), we have x**(i)_C = y
 def genPhi(c,y):
 	result = 1
 
@@ -87,6 +95,10 @@ def genPhi(c,y):
 
 	return result
 
+# return pair R,L
+# R is the Hamiltoian sum_C sum_y theta_C,y * Phi_C,y 
+# L list of lists, one list per clique C
+# List for clique C contains pairs (theta,Phi) of weight theta_C,y and Phi_C,y
 def genHamiltonian():
 	L = []
 	R = 0
@@ -103,6 +115,7 @@ def genHamiltonian():
 
 	return R,L
 
+# compute parameters of RZ-gates
 def genPhaseFactors(ey):
 	t = np.sqrt((-1-ey)/(-1+ey))
 
@@ -111,6 +124,7 @@ def genPhaseFactors(ey):
 
 	return np.array([phi1, phi2])
 
+# compute unitary U**gamma = exp(U)
 def genUphi(U,phi):
 	RZ1 = (phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	RZ2 = (phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
@@ -177,8 +191,8 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 #######################################
 
-#RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
-RUNS = [[[0,1],[1,2],[2,3],[0,3]],[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
+RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
+#RUNS = [[[0,1],[1,2],[2,3],[0,3]],[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
 
 logfile = open("results_experiment_1.csv", "w")
 logfile.write('n,d,num_cliques,C_max,fidelity,KL,success_rate,num_gates,depth,shots,w_min,w_max\n')
