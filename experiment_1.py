@@ -126,9 +126,10 @@ def genPhaseFactors(ey):
 
 # compute unitary U**gamma = exp(U)
 def genUphi(U,phi):
+	print(phi)
 	RZ1 = (phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	RZ2 = (phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
-	return RZ2 @ U @ RZ2 @ U # ignored conjugate transpose of first U
+	return RZ1 @ U @ RZ2 @ U # ignored conjugate transpose of first U
 
 # returns unitary if Eigenvalues of A are bounded by 1
 def uniEmbedding(A):
@@ -164,6 +165,8 @@ def expH_from_list_unreal(beta, L0, lnZ=0):
 			RESULT = U @ RESULT # complex result
 	return RESULT
 
+# core method
+# computes exp(-beta H) = 
 def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	qr = QuantumRegister(n+1+d, 'q') # one aux for unitary embedding plus one aux per factor
 	circ = QuantumCircuit(n+1+d,n+1+d)
