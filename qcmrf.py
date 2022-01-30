@@ -114,41 +114,11 @@ def genPhaseFactors(ey):
 def genUphi(U,phi):
 	RZ1 = (phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	RZ2 = (phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
-	return RZ2 @ U @ RZ2 @ U # ignored conjugate transpose of first U
+	return RZ1 @ U @ RZ2 @ U # ignored conjugate transpose of first U
 
 # returns unitary if Eigenvalues of A are bounded by 1
 def uniEmbedding(A):
 	return (X^((I^n)-A)) + (Z^A)
-
-# returns unitary if A is unitary
-def conjugateBlocks(A):
-	return (((I+Z)/2)^A) + (((I-Z)/2)^(~A))
-
-# works only if number of cliques is a power of two
-def expH_from_list_blocked(beta, L0, lnZ=0):
-	R = []
-	for Ly in L0:
-		L = [genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C)))))) for w0,Phi0 in Ly]
-		R.append(merge_all(L))
-	M = merge_all(R)
-	O = H^(I^int(n+1+np.log2(d)))
-	return O @ conjugateBlocks(M) @ (~O)
-
-def expH_from_list_real_algebraic(beta, L0, lnZ=0):
-	RESULT = I^(n+1)
-	for L in L0:
-		for (w0,Phi0) in L:
-			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C))))))
-			RESULT = (U+(~U))/2 @ RESULT # non-unitary extraction of real part
-	return RESULT
-
-def expH_from_list_unreal(beta, L0, lnZ=0):
-	RESULT = I^(n+1)
-	for L in L0:
-		for (w0,Phi0) in L:
-			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C))))))
-			RESULT = U @ RESULT # complex result
-	return RESULT
 
 def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	qr = QuantumRegister(n+1+d, 'q') # one aux for unitary embedding plus one aux per factor
@@ -167,7 +137,8 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 			# u = conjugateBlocks(U).to_circuit().to_instruction(label='U_C'+str(ii)+'_y'+str(jj))
 
 			u = U.to_circuit().to_instruction(label='U_C'+str(ii)+'_y'+str(jj)).control(1)
-			v = U.to_circuit().to_instruction(label='U_C'+str(ii)+'_y'+str(jj)).adjoint().control(1)
+			v = U.to_circuit().to_instruction(label='U_adj_C'+str(ii)+'_y'+
+                                                    str(jj)).adjoint().control(1)
 			circ.h(qr[n+1+i])
 			circ.append(v, [qr[j] for j in range(n+1)]+[qr[n+1+i]])
 			circ.x(qr[n + 1 + i])
