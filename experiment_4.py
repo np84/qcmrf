@@ -8,7 +8,7 @@ from colored import fg, bg, attr
 
 from qiskit.opflow import I, X, Z, Plus, Minus, H, Zero, One
 from qiskit.compiler import transpile
-from qiskit import QuantumRegister, QuantumCircuit
+from qiskit import QuantumRegister, QuantumCircuit, ClassicalRegister
 from qiskit import Aer, assemble
 
 #######################################
@@ -192,9 +192,10 @@ def expH_from_list_unreal(beta, L0, lnZ=0):
 def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	CL = len(L0)
 	qr = QuantumRegister(n+1+CL, 'q') # one aux for unitary embedding plus one aux per factor
+	cr = ClassicalRegister(n + 1 + CL, 'c')  # one aux for unitary embedding plus one aux per factor
 	
 	# create empty main circuit with d+1 aux qubits
-	circ = QuantumCircuit(n+1+CL,n+1+CL)
+	circ = QuantumCircuit(qr, cr)
 	for i in range(n):
 		circ.h(qr[i])
 		
@@ -215,8 +216,8 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 		# Create "instruction" which can be used in another circuit
 		u_instr = U.to_circuit()
 		OL = 3
-		UU = transpile(u_instr, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y',
-											 'z'], optimization_level=OL).to_gate()
+		UU = transpile(u_instr, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'],
+					   optimization_level=OL).to_gate()
 		u = UU.control(1, ctrl_state='0')
 		if U.adjoint() == U:
 			v = UU.control(1)
@@ -227,11 +228,11 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 						   optimization_level=OL).to_gate()
 			v = VV.control(1)
 		circ.h(qr[n + 1 + i])
-		circ.append(v, [qr[j] for j in range(n + 1)] + [qr[n + 1 + i]])
-		circ.append(u, [qr[j] for j in range(n + 1)] + [qr[n + 1 + i]])
+		circ.append(v, [qr[n + 1 + i]] + [qr[j] for j in range(n + 1)])
+		circ.append(u, [qr[n + 1 + i]] + [qr[j] for j in range(n + 1)])
 		circ.h(qr[n + 1 + i])
 
-		circ.measure([n+1+i],[n+1+i])
+		circ.measure(qr[n+1+i],cr[n+1+i])
 		
 		circ.barrier(qr)
 
