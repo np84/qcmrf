@@ -243,10 +243,10 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 #######################################
 
-RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]]]
+#RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]]]
 #,[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
 #RUNS = [[[0,1],[1,2],[2,3],[0,3]],[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
-#RUNS = [[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
+RUNS = [[[0,1,2,3],[3,4,5,6]]]
 
 logfile = open("results_experiment_1.csv", "w")
 logfile.write('n,d,num_cliques,C_max,fidelity,KL,success_rate,num_gates,depth,shots,w_min,w_max\n')
@@ -270,6 +270,7 @@ for C in RUNS:
 		R2b = expH_from_list_real_RUS(beta, LL)
 		OL  = 3
 		UU  = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=OL)
+		#print(UU)
 		N   = 1000000
 		sim = Aer.get_backend('aer_simulator')
 		j   = sim.run(assemble(UU,shots=N))
