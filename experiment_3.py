@@ -126,12 +126,12 @@ def genPhaseFactors(ey):
 
 # compute unitary U**gamma = exp(U)
 def genUphi(U,phi):
-	RZ1 = (phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
-	RZ2 = (phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
+	RZ1 = ((-1)*phi[0] * Z).exp_i() ^ (I^n) # ignored sign of phi
+	RZ2 = ((-1)*phi[1] * Z).exp_i() ^ (I^n) # ignored sign of phi
 	assert np.isclose(phi[0], phi[1])
 	#assert U == ~U (always true)
 	#assert RZ1 == RZ2 (always true)
-	return RZ1 @ U @ RZ1 @ U # ignored conjugate transpose of first U
+	return RZ1 @ U @ RZ1 @ U # ignored conjugate transpose of first U bc symmetric and real
 
 # returns unitary if Eigenvalues of A are bounded by 1
 def uniEmbedding(A):
@@ -145,7 +145,8 @@ def conjugateBlocks(A):
 def expH_from_list_blocked(beta, L0, lnZ=0):
 	R = []
 	for Ly in L0:
-		L = [genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C)))))) for w0,Phi0 in Ly]
+		L = [genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*(w0 - (lnZ/len(C)))))) for
+			 w0, Phi0 in Ly]
 		R.append(merge_all(L))
 	M = merge_all(R)
 	O = H^(I^int(n+1+np.log2(d)))
