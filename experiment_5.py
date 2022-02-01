@@ -248,7 +248,7 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 #RUNS = [[[0,1],[1,2],[2,3],[0,3]],[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
 RUNS = [[[0,1,2,3],[3,4,5,6]]]
 
-logfile = open("results_experiment_1.csv", "w")
+logfile = open("results_experiment_5.csv", "w")
 logfile.write('n,d,num_cliques,C_max,fidelity,KL,success_rate,num_gates,depth,shots,w_min,w_max\n')
 
 for C in RUNS:

@@ -249,7 +249,7 @@ RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]]]
 #RUNS = [[[0,1],[1,2],[2,3],[0,3]],[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
 #RUNS = [[[0,1],[1,2],[2,3],[0,3],[3,4,5]]]
 
-logfile = open("results_experiment_1.csv", "w")
+logfile = open("results_experiment_4.csv", "w")
 logfile.write('n,d,num_cliques,C_max,fidelity,KL,success_rate,num_gates,depth,shots,w_min,w_max\n')
 
 for C in RUNS:
