@@ -6,9 +6,9 @@ np.set_printoptions(threshold=sys.maxsize,linewidth=1024)
 import itertools
 from colored import fg, bg, attr
 
-from qiskit.opflow import I, X, Z, Plus, Minus, H, Zero, One, MatrixOp
+from qiskit.opflow import I, X, Z, Plus, Minus, H, Zero, One
 from qiskit.compiler import transpile
-from qiskit import QuantumRegister, QuantumCircuit
+from qiskit import QuantumRegister, QuantumCircuit, ClassicalRegister
 from qiskit import Aer, assemble
 
 #######################################
@@ -136,11 +136,6 @@ def genUphi(U,phi):
 # returns unitary if Eigenvalues of A are bounded by 1
 def uniEmbedding(A):
 	return (X^((I^n)-A)) + (Z^A)
-	
-def uniEmbeddingN(A):
-	M = A.to_matrix()
-	U = np.matrix(np.block([[M,np.sqrt(np.eye(2**n)-(M@M))],[np.sqrt(np.eye(2**n)-(M@M)),-M]]))
-	return MatrixOp(U)
 
 # returns unitary if A is unitary
 def conjugateBlocks(A):
@@ -197,9 +192,10 @@ def expH_from_list_unreal(beta, L0, lnZ=0):
 def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	CL = len(L0)
 	qr = QuantumRegister(n+1+CL, 'q') # one aux for unitary embedding plus one aux per factor
+	cr = ClassicalRegister(n + 1 + CL, 'c')  # one aux for unitary embedding plus one aux per factor
 	
 	# create empty main circuit with d+1 aux qubits
-	circ = QuantumCircuit(n+1+CL,n+1+CL)
+	circ = QuantumCircuit(qr, cr)
 	for i in range(n):
 		circ.h(qr[i])
 		
@@ -213,23 +209,30 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 			assert w < 0
 
 			# compute U**gamma = P**(beta w_j)(U_j)
-			#for UU in Phi0:
 			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*w)))
 			RESULT = U @ RESULT
-			
-#		print(RESULT.to_matrix().astype(float))
 
 		# Write U**gamma and ~U**gamma on diagonal of matrix, creates j-th aux qubit
 		# Create "instruction" which can be used in another circuit
-		u = conjugateBlocks(RESULT).to_circuit().to_instruction(label='U_C'+str(ii))
+		u_instr = U.to_circuit()
+		OL = 3
+		UU = transpile(u_instr, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'],
+					   optimization_level=OL).to_gate()
+		u = UU.control(1, ctrl_state='0')
+		if U.adjoint() == U:
+			v = UU.control(1)
+		else:
+			v_instr = U.adjoint().to_circuit()
+			VV = transpile(v_instr,
+						   basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'],
+						   optimization_level=OL).to_gate()
+			v = VV.control(1)
+		circ.h(qr[n + 1 + i])
+		circ.append(v, [qr[n + 1 + i]] + [qr[j] for j in range(n + 1)])
+		circ.append(u, [qr[n + 1 + i]] + [qr[j] for j in range(n + 1)])
+		circ.h(qr[n + 1 + i])
 
-		# add Hadamard to j-th aux qubit
-		circ.h(qr[n+1+i])
-		# add U**gamma circuit to main circuit
-		circ.append(u, [qr[j] for j in range(n+1)]+[qr[n+1+i]])
-		# add another Hadamard to aux qubit
-		circ.h(qr[n+1+i])
-		circ.measure([n+1+i],[n+1+i])
+		circ.measure(qr[n+1+i],cr[n+1+i])
 		
 		circ.barrier(qr)
 
@@ -266,6 +269,7 @@ for C in RUNS:
 		beta = 1
 		R0  = expm(-beta*HAM.to_matrix()) # exp(-βH) via numpy for debugging
 		R2b = expH_from_list_real_RUS(beta, LL)
+		print(R2b)
 		OL  = 3
 		UU  = transpile(R2b, basis_gates=['cx','id','rz','sx','x'], optimization_level=OL)
 		N   = 1000000

@@ -185,7 +185,6 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 
 			# compute U**gamma = P**(beta w_j)(U_j)
 			U = genUphi(uniEmbedding(Phi0), genPhaseFactors(np.exp(beta*w)))
-
 			# Write U**gamma and ~U**gamma on diagonal of matrix, creates j-th aux qubit
 			# Create "instruction" which can be used in another circuit
 			u = conjugateBlocks(U).to_circuit().to_instruction(label='U_C'+str(ii)+'_y'+str(jj))
