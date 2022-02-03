@@ -117,12 +117,13 @@ def genHamiltonian():
 
 # compute parameters of RZ-gates
 def genPhaseFactors(ey):
-	t = np.sqrt((-1-ey)/(-1+ey))
+	#t = np.sqrt((-1-ey)/(-1+ey))
+	#phi1 = np.angle( ( (1+t*1j) + ey*(1-t*1j) ) / 2 )
+	#phi2 = np.real(np.angle( np.sqrt(0.5) * np.sqrt(1 - ey) * (t + 1j) ))
 
-	phi1 = np.angle( ( (1+t*1j) + ey*(1-t*1j) ) / 2 )
-	phi2 = np.real(np.angle( np.sqrt(0.5) * np.sqrt(1 - ey) * (t + 1j) ))
+	phi1 = 0.5 * np.arccos(ey)
 
-	return np.array([phi1, phi2])
+	return np.array([phi1, phi1])
 
 # compute unitary U**gamma = exp(U)
 def genUphi(U,phi):
@@ -242,6 +243,7 @@ def expH_from_list_real_RUS(beta, L0, lnZ=0):
 	return circ
 
 #######################################
+
 
 RUNS = [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]]]
 #,[[0,1],[1,2],[2,3],[0,3]],[[0,1,2],[0,2,3]],[[0,1,2,3]]]
