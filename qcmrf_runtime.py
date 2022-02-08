@@ -21,7 +21,7 @@ from qiskit.opflow import I, X, Z, MatrixOp
 from qiskit.compiler import transpile
 from qiskit import QuantumCircuit
 from qiskit.providers.backend import Backend
-from qiskit.ignis.mitigation.measurement import CompleteMeasFitter
+from qiskit.utils.mitigation import CompleteMeasFitter
 from qiskit.utils import QuantumInstance
 
 class Publisher:
@@ -281,14 +281,15 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 			else:
 				C = QCMRF(graphs[i],beta=b)
 			
+			T = transpile(C, backend, optimization_level=optimization_level, initial_layout=layout, seed_transpiler=42)
+			
 			if not measurement_error_mitigation:
-				T = transpile(C, backend, optimization_level=optimization_level, initial_layout=layout, seed_transpiler=42)
 				job = backend.run(T, shots=shots)
 				result = job.result()
 				
 			else:
 				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, initial_layout=layout, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, seed_simulator=23, measurement_error_mitigation_shots=shots/2)
-				result = qi.execute(C, had_transpiled= False)
+				result = qi.execute([T], had_transpiled = True)
 
 			#rjob = backend.retrieve_job(job.job_id())
 			#rjob.wait_for_final_state()
