@@ -1,8 +1,13 @@
 import numpy as np
 from qiskit import IBMQ
+import argparse
+
+parser = argparse.ArgumentParser(description='Enqueue QCMRF experiments on qiskit runtime systems.')
+parser.add_argument('backend', metavar='backend', type=str, nargs=1, help='Qiskit backend.')
+args = parser.parse_args()
 
 options = {
-	'backend_name': 'ibm_cairo'
+	'backend_name': args.backend[0]
 }
 
 runtime_inputs = {
@@ -18,8 +23,6 @@ runtime_inputs = {
 		"optimization_level": 3
 	}
 
-print(runtime_inputs)
-
 IBMQ.load_account()
 
 provider = IBMQ.get_provider(
@@ -29,7 +32,7 @@ provider = IBMQ.get_provider(
 )
 
 job = provider.runtime.run(
-	program_id='qcmrf-DRP1WwbEm8',
+	program_id='qcmrf-429eaX45X2',
 	options=options,
 	inputs=runtime_inputs
 )
@@ -40,4 +43,4 @@ print(job.job_id())
 print(job.status())
 
 # Get results
-result = job.result()
+#result = job.result()
