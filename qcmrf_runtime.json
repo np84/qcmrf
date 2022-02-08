@@ -1,7 +1,7 @@
 {
   "name": "qcmrf",
   "description": "Quantum Circuit Markov Random Fields.",
-  "max_execution_time": 10000,
+  "max_execution_time": 25200,
   "spec": {
     "parameters": {
       "$schema": "https://json-schema.org/draft/2019-09/schema",
@@ -24,7 +24,7 @@
         },
         "repetitions": {
           "type": "int",
-          "description": "NUmber of runs per graph."
+          "description": "Number of runs per graph."
         },
         "shots": {
           "type": "int",
@@ -42,6 +42,35 @@
       "required": [
         "graphs"
       ]
+    },
+    "return_values": {
+       "$schema": "https://json-schema.org/draft/2019-09/schema",
+       "properties": {
+          "mean_fidelity": {
+            "description": "Mean MRF fidelity over all runs.",
+            "type": "number"
+          },
+          "mean_KL": {
+            "description": "Mean Kullback-Leibler divergence over all runs..",
+            "type": "number"
+          },
+          "mean_success_rate": {
+            "description": "Mean RUS success-rate for real part extraction over all runs.",
+            "type": "number"
+          },
+          "mean_depth": {
+            "description": "Mean circuit depth over all runs.",
+            "type": "number"
+          },
+          "all_results": {
+            "description": "A dictionary containing information about each specific run.",
+            "type": "object"
+          },
+          "inputs": {
+            "description": "A dictionary of the serialized input keyword arguments. The type is Dict[str, Any].",
+            "type": "object"
+          }
+      }
     }
   }
 }
