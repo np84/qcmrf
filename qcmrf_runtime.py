@@ -335,15 +335,6 @@ def main(backend, user_messenger, **kwargs):
 	layout = kwargs.get("layout", None)
 	serialized_inputs["layout"] = layout
 
-	# add measurement error mitigation if specified
-	if measurement_error_mitigation:
-		# allow for TensoredMeasFitter as soon as runtime runs on latest Terra
-		measurement_error_mitigation_cls = TensoredMeasFitter
-		measurement_error_mitigation_shots = shots
-	else:
-		measurement_error_mitigation_cls = None
-		measurement_error_mitigation_shots = None
-
 	# publisher for user-server communication
 	publisher = Publisher(user_messenger)
 	
