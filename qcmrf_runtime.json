@@ -1,0 +1,47 @@
+{
+  "name": "qcmrf",
+  "description": "Quantum Circuit Markov Random Fields.",
+  "max_execution_time": 10000,
+  "spec": {
+    "parameters": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "properties": {
+        "graphs": {
+          "type": "list",
+          "description": "List of list of ints. Defines clique structures of multiple graphs."
+        },
+        "thetas": {
+          "type": "list",
+          "description": "MRF parameters."
+        },
+        "gammas": {
+          "type": "list",
+          "description": "Circuit parameters."
+        },
+        "betas": {
+          "type": "list",
+          "description": "Inverse temperatures."
+        },
+        "repetitions": {
+          "type": "int",
+          "description": "NUmber of runs per graph."
+        },
+        "shots": {
+          "type": "int",
+          "description": "Number of samples per run."
+        },
+        "measurement_error_mitigation": {
+          "type": "bool",
+          "description": "Whether to apply measurement error mitigation."
+        },
+        "optimization_level": {
+          "type": "int",
+          "description": "The optimization level to run."
+        }
+      },
+      "required": [
+        "graphs"
+      ]
+    }
+  }
+}
