@@ -2,13 +2,12 @@ import numpy as np
 from qiskit import IBMQ
 
 options = {
-#	'backend_name': 'ibmq_montreal'
-	'backend_name': 'ibm_cairo'
+	'backend_name': 'ibm_hanoi'
 }
 
 runtime_inputs = {
 		#"graphs": [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2,3]]],
-		"graphs": [[[0]],[[0,1]]],
+		"graphs": [[[0]],[[0,1]],[[0,1],[1,2]]],
 		"thetas": None,
 		"gammas": None,
 		"betas": None,
@@ -29,7 +28,7 @@ provider = IBMQ.get_provider(
 )
 
 job = provider.runtime.run(
-	program_id='qcmrf-K8n3q60Y0o',
+	program_id='qcmrf-voeMmN6boX',
 	options=options,
 	inputs=runtime_inputs
 )

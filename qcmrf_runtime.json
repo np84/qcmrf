@@ -30,9 +30,13 @@
           "type": "int",
           "description": "Number of samples per run."
         },
+        "layout": {
+          "type": "List[int]",
+          "description": "List of qubits."
+        },
         "measurement_error_mitigation": {
           "type": "bool",
-          "description": "Whether to apply measurement error mitigation."
+          "description": "Whether to apply measurement error mitigation. Default: True"
         },
         "optimization_level": {
           "type": "int",

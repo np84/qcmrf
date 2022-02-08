@@ -9,8 +9,6 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-# qcmrf-K8n3q60Y0o
-
 """A self-contained QCMRF."""
 
 from typing import Dict, List, Optional, Set, Tuple
@@ -18,12 +16,13 @@ from typing import Dict, List, Optional, Set, Tuple
 import numpy as np
 from scipy.linalg import expm
 import itertools
-import json
 
 from qiskit.opflow import I, X, Z, MatrixOp
 from qiskit.compiler import transpile
 from qiskit import QuantumCircuit
 from qiskit.providers.backend import Backend
+from qiskit.ignis.mitigation.measurement import CompleteMeasFitter
+from qiskit.utils import QuantumInstance
 
 class Publisher:
 	"""Class used to publish interim results."""
@@ -41,8 +40,7 @@ class Publisher:
 # begin QCMRF
 
 class QCMRF(QuantumCircuit):
-	"""Quantum circuit Markov random field.
-	"""
+	"""Quantum circuit Markov random field."""
 
 	def __init__(
 		self,
@@ -55,8 +53,7 @@ class QCMRF(QuantumCircuit):
 		r"""
 		Args:
 			cliques (List[List[int]]): List of integer lists, representing the clique structure of the
-				Markov random field. For a n-dimensional random field, variable indices 0..n-1
-				are required.
+				Markov random field. For a n-dimensional random field, variable indices 0..n-1 are required.
 			theta (List[float], optional): The native parameter of the Markov random field.
 			gamma (List[float], optional): The alternative circuit parameters of the Markov random field.
 			beta (float, optional): inverse temperature, default 1
@@ -89,6 +86,7 @@ class QCMRF(QuantumCircuit):
 			if m > self._c_max:
 				self._c_max = m
 			self._dim += (2**m)
+			
 			
 		if self._theta is not None and len(self._theta) != self._dim:
 			raise ValueError(
@@ -268,7 +266,7 @@ def extract_probs(R,n,a):
 	
 	return P/z, z
 
-def run(backend,graphs,thetas,gammas,betas,repetitions,shots,callback=None,measurement_error_mitigation=False,optimization_level=3):
+def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callback=None,measurement_error_mitigation=True,optimization_level=3):
 	for i in range(len(graphs)):
 		for j in range(repetitions):
 			if betas is not None:
@@ -283,13 +281,19 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,callback=None,measu
 			else:
 				C = QCMRF(graphs[i],beta=b)
 			
-			T = transpile(C, backend, optimization_level=optimization_level)
-			rjob = backend.run(T, shots=shots)
+			if not measurement_error_mitigation:
+				T = transpile(C, backend, optimization_level=optimization_level, initial_layout=layout, seed_transpiler=42)
+				job = backend.run(T, shots=shots)
+				result = job.result()
+				
+			else:
+				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, initial_layout=layout, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, seed_simulator=23, measurement_error_mitigation_shots=shots/2)
+				result = qi.execute(C, had_transpiled= False)
 
 			#rjob = backend.retrieve_job(job.job_id())
 			#rjob.wait_for_final_state()
 			
-			P, c = extract_probs(rjob.result().get_counts(), C.num_vertices, C.num_cliques)
+			P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
 			
 			H = C.groundtruthHamiltonian()
 			RHO = expm(-b*H.to_matrix())
@@ -297,26 +301,6 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,callback=None,measu
 			Q = np.diag(RHO)/z
 			
 			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots)
-			
-#def test():
-#	from qiskit import Aer
-#	from qiskit.providers.ibmq.runtime.utils import RuntimeEncoder, RuntimeDecoder
-#	from qiskit.providers.ibmq.runtime import UserMessenger
-#	backend = Aer.get_backend('qasm_simulator')
-#	inputs = {
-#		"graphs": [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2,3]]],
-#		"thetas": None,
-#		"gammas": None,
-#		"betas": None,
-#		"repetitions": 10,
-#		"shots": 100000,
-#		"measurement_error_mitigation": False,
-#		"optimization_level": 3
-#	}
-#	user_messenger = UserMessenger()
-#	serialized_inputs = json.dumps(inputs, cls=RuntimeEncoder)
-#	deserialized_inputs = json.loads(serialized_inputs, cls=RuntimeDecoder)
-#	main(backend, user_messenger, **deserialized_inputs)
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
@@ -347,6 +331,9 @@ def main(backend, user_messenger, **kwargs):
 
 	optimization_level = kwargs.get("optimization_level", 3)
 	serialized_inputs["optimization_level"] = optimization_level
+	
+	layout = kwargs.get("layout", None)
+	serialized_inputs["layout"] = layout
 
 	# add measurement error mitigation if specified
 	if measurement_error_mitigation:
@@ -386,6 +373,7 @@ def main(backend, user_messenger, **kwargs):
 		kwargs["betas"],
 		kwargs["repetitions"],
 		kwargs["shots"],
+		kwargs["layout"],
 		store_history_and_forward,
 		kwargs["measurement_error_mitigation"],
 		kwargs["optimization_level"]
