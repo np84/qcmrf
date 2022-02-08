@@ -13,6 +13,7 @@ runtime_inputs = {
 		"betas": None,
 		"repetitions": 10,
 		"shots": 32000,
+		"layout": None,
 		"measurement_error_mitigation": False,
 		"optimization_level": 3
 	}
