@@ -32,7 +32,7 @@ provider = IBMQ.get_provider(
 )
 
 job = provider.runtime.run(
-	program_id='qcmrf-429eaX45X2',
+	program_id='qcmrf-j8Kv1qzNGR',
 	options=options,
 	inputs=runtime_inputs
 )
@@ -43,4 +43,4 @@ print(job.job_id())
 print(job.status())
 
 # Get results
-#result = job.result()
+result = job.result()

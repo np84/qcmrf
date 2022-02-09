@@ -17,6 +17,8 @@ import numpy as np
 from scipy.linalg import expm
 import itertools
 
+import time
+
 from qiskit.opflow import I, X, Z, MatrixOp
 from qiskit.compiler import transpile
 from qiskit import QuantumCircuit
@@ -273,35 +275,39 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				b = betas[i]
 			else:
 				b = 1
-		
+
 			if thetas is not None:
 				C = QCMRF(graphs[i],theta=thetas[i],beta=b)
 			elif gammas is not None:
 				C = QCMRF(graphs[i],gamma=gammas[i],beta=b)
 			else:
 				C = QCMRF(graphs[i],beta=b)
-			
-			T = transpile(C, backend, optimization_level=optimization_level, initial_layout=layout, seed_transpiler=42)
-			
+
+			s1 = time.time()
+			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42) # initial_layout=layout
+			s1 = time.time() - s1
+
+			s2 = time.time()
 			if not measurement_error_mitigation:
 				job = backend.run(T, shots=shots)
 				result = job.result()
 				
 			else:
-				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, initial_layout=layout, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, seed_simulator=23, measurement_error_mitigation_shots=shots/2)
+				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, seed_simulator=23, measurement_error_mitigation_shots=shots/2)
 				result = qi.execute([T], had_transpiled = True)
 
 			#rjob = backend.retrieve_job(job.job_id())
 			#rjob.wait_for_final_state()
 			
 			P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
-			
+			s2 = time.time() - s2
+
 			H = C.groundtruthHamiltonian()
 			RHO = expm(-b*H.to_matrix())
 			z = np.trace(RHO)
 			Q = np.diag(RHO)/z
 			
-			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots)
+			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2)
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
@@ -340,9 +346,9 @@ def main(backend, user_messenger, **kwargs):
 	publisher = Publisher(user_messenger)
 	
 	# dictionary to store the history of the runs
-	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": []}
+	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "exec_time": []}
 
-	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots):
+	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, exec_time):
 		# store information
 		history["n"].append(n)
 		history["d"].append(d)
@@ -354,8 +360,10 @@ def main(backend, user_messenger, **kwargs):
 		history["gates"].append(gates)
 		history["depth"].append(depth)
 		history["shots"].append(shots)
+		history["transpile_time"].append(transpile_time)
+		history["exec_time"].append(exec_time)
 		# and forward information to users callback
-		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots)
+		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, exec_time)
 
 	result = run(
 		backend,
@@ -372,10 +380,14 @@ def main(backend, user_messenger, **kwargs):
 	)
 
 	serialized_result = {
-		"mean_fidelity": np.mean(history['fidelity']),
-		"mean_KL": np.mean(history['KL']),
-		"mean_success_rate": np.mean(history['success_rate']),
-		"mean_depth": np.mean(history['depth']),
+		"Fidelity_μ": np.mean(history['fidelity']),
+		"Fidelity_σ": np.dev(history['fidelity']),
+		"KL_μ": np.mean(history['KL']),
+		"KL_σ": np.dev(history['KL']),
+		"SR_μ": np.mean(history['success_rate']),
+		"SR_σ": np.dev(history['success_rate']),
+		"Depth_μ": np.mean(history['depth']),
+		"Depth_σ": np.dev(history['depth']),
 		"all_results": history,
 		"inputs": serialized_inputs,
 	}

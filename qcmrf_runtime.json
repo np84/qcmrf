@@ -32,7 +32,7 @@
         },
         "layout": {
           "type": "List[int]",
-          "description": "List of qubits."
+          "description": "List of qubits. DISABLED"
         },
         "measurement_error_mitigation": {
           "type": "bool",
@@ -50,20 +50,36 @@
     "return_values": {
        "$schema": "https://json-schema.org/draft/2019-09/schema",
        "properties": {
-          "mean_fidelity": {
+          "Fidelity_μ": {
             "description": "Mean MRF fidelity over all runs.",
             "type": "number"
           },
-          "mean_KL": {
-            "description": "Mean Kullback-Leibler divergence over all runs..",
+          "Fidelity_σ": {
+            "description": "Standard deviation of MRF fidelity over all runs.",
             "type": "number"
           },
-          "mean_success_rate": {
+          "KL_μ": {
+            "description": "Mean Kullback-Leibler divergence over all runs.",
+            "type": "number"
+          },
+          "KL_σ": {
+            "description": "Standard deviation of Kullback-Leibler divergence over all runs.",
+            "type": "number"
+          },
+          "SR_μ": {
             "description": "Mean RUS success-rate for real part extraction over all runs.",
             "type": "number"
           },
-          "mean_depth": {
+          "SR_σ": {
+            "description": "Standard deviation of RUS success-rate for real part extraction over all runs.",
+            "type": "number"
+          },
+          "Depth_μ": {
             "description": "Mean circuit depth over all runs.",
+            "type": "number"
+          },
+          "Depth_σ": {
+            "description": "Standard deviation of circuit depth over all runs.",
             "type": "number"
           },
           "all_results": {
