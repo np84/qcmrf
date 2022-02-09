@@ -293,21 +293,22 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				result = job.result()
 				
 			else:
-				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, seed_simulator=23, measurement_error_mitigation_shots=shots/2)
-				result = qi.execute([T], had_transpiled = True)
-
+				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, measurement_error_mitigation_shots=shots/2)
+				result = qi.execute(T) #qi.execute([T], had_transpiled = True)
+			s2 = time.time() - s2
+			
 			#rjob = backend.retrieve_job(job.job_id())
 			#rjob.wait_for_final_state()
-			
+			s3 = time.time()
 			P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
-			s2 = time.time() - s2
-
+			s3 = time.time() - s3
+			
 			H = C.groundtruthHamiltonian()
 			RHO = expm(-b*H.to_matrix())
 			z = np.trace(RHO)
 			Q = np.diag(RHO)/z
 			
-			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2)
+			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2, s3)
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
@@ -346,9 +347,9 @@ def main(backend, user_messenger, **kwargs):
 	publisher = Publisher(user_messenger)
 	
 	# dictionary to store the history of the runs
-	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "exec_time": []}
+	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": []}
 
-	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, exec_time):
+	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time):
 		# store information
 		history["n"].append(n)
 		history["d"].append(d)
@@ -361,9 +362,10 @@ def main(backend, user_messenger, **kwargs):
 		history["depth"].append(depth)
 		history["shots"].append(shots)
 		history["transpile_time"].append(transpile_time)
+		history["prepare_time"].append(prepare_time)
 		history["exec_time"].append(exec_time)
 		# and forward information to users callback
-		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, exec_time)
+		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time)
 
 	result = run(
 		backend,
