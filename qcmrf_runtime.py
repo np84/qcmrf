@@ -298,7 +298,7 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				T = qi.transpile([C])[0]
 				s1 = time.time() - s1
 				s2 = time.time()
-				result = qi.execute([T], had_transpiled = True)
+				result = qi.execute([T])
 			s2 = time.time() - s2
 			
 			#rjob = backend.retrieve_job(job.job_id())
