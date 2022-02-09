@@ -50,35 +50,35 @@
     "return_values": {
        "$schema": "https://json-schema.org/draft/2019-09/schema",
        "properties": {
-          "Fidelity_&#x3BC;": {
+          "Fidelity_mean": {
             "description": "Mean MRF fidelity over all runs.",
             "type": "number"
           },
-          "Fidelity_&#x3C3;": {
+          "Fidelity_sdev": {
             "description": "Standard deviation of MRF fidelity over all runs.",
             "type": "number"
           },
-          "KL_&#x3BC;": {
+          "KL_mean": {
             "description": "Mean Kullback-Leibler divergence over all runs.",
             "type": "number"
           },
-          "KL_&#x3C3;": {
+          "KL_sdev": {
             "description": "Standard deviation of Kullback-Leibler divergence over all runs.",
             "type": "number"
           },
-          "SR_&#x3BC;": {
+          "SR_mean": {
             "description": "Mean RUS success-rate for real part extraction over all runs.",
             "type": "number"
           },
-          "SR_&#x3C3;": {
+          "SR_sdev": {
             "description": "Standard deviation of RUS success-rate for real part extraction over all runs.",
             "type": "number"
           },
-          "Depth_&#x3BC;": {
+          "Depth_mean": {
             "description": "Mean circuit depth over all runs.",
             "type": "number"
           },
-          "Depth_&#x3C3;": {
+          "Depth_sdev": {
             "description": "Standard deviation of circuit depth over all runs.",
             "type": "number"
           },
