@@ -283,18 +283,22 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 			else:
 				C = QCMRF(graphs[i],beta=b)
 
-			s1 = time.time()
-			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42) # initial_layout=layout
-			s1 = time.time() - s1
-
-			s2 = time.time()
+		
 			if not measurement_error_mitigation:
+				s1 = time.time()
+				T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42) # initial_layout=layout
+				s1 = time.time() - s1
+				s2 = time.time()
 				job = backend.run(T, shots=shots)
 				result = job.result()
 				
 			else:
+				s1 = time.time()
 				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, measurement_error_mitigation_shots=shots/2)
-				result = qi.execute(T) #qi.execute([T], had_transpiled = True)
+				T = qi.transpile([C])[0]
+				s1 = time.time() - s1
+				s2 = time.time()
+				result = qi.execute([T], had_transpiled = True)
 			s2 = time.time() - s2
 			
 			#rjob = backend.retrieve_job(job.job_id())
@@ -383,13 +387,13 @@ def main(backend, user_messenger, **kwargs):
 
 	serialized_result = {
 		"Fidelity_μ": np.mean(history['fidelity']),
-		"Fidelity_σ": np.dev(history['fidelity']),
+		"Fidelity_σ": np.std(history['fidelity']),
 		"KL_μ": np.mean(history['KL']),
-		"KL_σ": np.dev(history['KL']),
+		"KL_σ": np.std(history['KL']),
 		"SR_μ": np.mean(history['success_rate']),
-		"SR_σ": np.dev(history['success_rate']),
+		"SR_σ": np.std(history['success_rate']),
 		"Depth_μ": np.mean(history['depth']),
-		"Depth_σ": np.dev(history['depth']),
+		"Depth_σ": np.std(history['depth']),
 		"all_results": history,
 		"inputs": serialized_inputs,
 	}
