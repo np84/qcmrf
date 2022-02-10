@@ -419,7 +419,7 @@ def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level
 	}
 
 	qjob_config = (
-		{"timeout": None} # if self.is_local else {"timeout": None, "wait": wait}
+		{"timeout": None, "wait": 5.0}
 	)
 
 	skip_qobj_validation = True
