@@ -295,7 +295,7 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				C = QCMRF(graphs[i],beta=b)
 
 			s1 = time.time()
-			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42)
+			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=layout[:C.num_vertices])
 			s1 = time.time() - s1		
 			
 			s2 = time.time()
@@ -304,7 +304,7 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				result = job.result()
 				
 			else:
-				result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=TensoredMeasFitter, optimization_level=optimization_level, seed_transpiler=42)
+				result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=TensoredMeasFitter, optimization_level=optimization_level, seed_transpiler=42, initial_layout=layout[:C.num_vertices])
 			s2 = time.time() - s2
 			
 			#rjob = backend.retrieve_job(job.job_id())
@@ -392,28 +392,28 @@ def main(backend, user_messenger, **kwargs):
 	)
 
 	serialized_result = {
-		"Fidelity_μ": np.mean(history['fidelity']),
-		"Fidelity_σ": np.std(history['fidelity']),
-		"KL_μ": np.mean(history['KL']),
-		"KL_σ": np.std(history['KL']),
-		"SR_μ": np.mean(history['success_rate']),
-		"SR_σ": np.std(history['success_rate']),
-		"Depth_μ": np.mean(history['depth']),
-		"Depth_σ": np.std(history['depth']),
+		"Fidelity_mean": np.mean(history['fidelity']),
+		"Fidelity_sdev": np.std(history['fidelity']),
+		"KL_mean": np.mean(history['KL']),
+		"KL_sdev": np.std(history['KL']),
+		"SR_mean": np.mean(history['success_rate']),
+		"SR_sdev": np.std(history['success_rate']),
+		"Depth_mean": np.mean(history['depth']),
+		"Depth_sdev": np.std(history['depth']),
 		"all_results": history,
 		"inputs": serialized_inputs,
 	}
 
 	return serialized_result
 
-def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level,seed_transpiler):
+def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level,seed_transpiler,initial_layout):
 	if isinstance(circuits, list):
 		circuits = circuits.copy()
 	else:
 		circuits = [circuits]
 
 	compile_config = {
-		"initial_layout": None,
+		"initial_layout": initial_layout,
 		"seed_transpiler": seed_transpiler,
 		"optimization_level": optimization_level,
 	}
