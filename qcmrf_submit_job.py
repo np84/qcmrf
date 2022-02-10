@@ -1,4 +1,5 @@
 import numpy as np
+import json
 from qiskit import IBMQ
 import argparse
 
@@ -31,16 +32,19 @@ provider = IBMQ.get_provider(
 	project='ticket'
 )
 
+with open('program_id.json', 'r') as idfile:
+	res = json.load(idfile)
+
+print(res)
+
 job = provider.runtime.run(
-	program_id='qcmrf-P8LxjPxQb8',
+	program_id=res['program_id'],
 	options=options,
-	inputs=runtime_inputs
+	inputs=runtime_inputs,
+	callback=print
 )
 
-# Job id
-print(job.job_id())
-# See job status
-print(job.status())
+print(job.job_id(),job.status())
 
 # Get results
 result = job.result()

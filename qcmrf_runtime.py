@@ -18,13 +18,24 @@ from scipy.linalg import expm
 import itertools
 
 import time
+import copy
 
 from qiskit.opflow import I, X, Z, MatrixOp
 from qiskit.compiler import transpile
 from qiskit import QuantumCircuit
 from qiskit.providers.backend import Backend
-from qiskit.utils.mitigation import CompleteMeasFitter
-from qiskit.utils import QuantumInstance
+
+from qiskit.compiler import assemble
+from qiskit.assembler.run_config import RunConfig
+from qiskit.utils.mitigation import CompleteMeasFitter, TensoredMeasFitter
+
+from qiskit.utils.run_circuits import run_qobj, run_circuits
+from qiskit.utils.measurement_error_mitigation import (
+	get_measured_qubits_from_qobj,
+	get_measured_qubits,
+	build_measurement_error_mitigation_circuits,
+	build_measurement_error_mitigation_qobj,
+)
 
 class Publisher:
 	"""Class used to publish interim results."""
@@ -283,22 +294,17 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 			else:
 				C = QCMRF(graphs[i],beta=b)
 
-		
+			s1 = time.time()
+			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42)
+			s1 = time.time() - s1		
+			
+			s2 = time.time()
 			if not measurement_error_mitigation:
-				s1 = time.time()
-				T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42) # initial_layout=layout
-				s1 = time.time() - s1
-				s2 = time.time()
 				job = backend.run(T, shots=shots)
 				result = job.result()
 				
 			else:
-				s1 = time.time()
-				qi = QuantumInstance(backend=backend, shots=shots, optimization_level=optimization_level, seed_transpiler=42, skip_qobj_validation=False, measurement_error_mitigation_cls=CompleteMeasFitter, measurement_error_mitigation_shots=shots/2)
-				T = qi.transpile([C])[0]
-				s1 = time.time() - s1
-				s2 = time.time()
-				result = qi.execute([T])
+				result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=TensoredMeasFitter, optimization_level=optimization_level, seed_transpiler=42)
 			s2 = time.time() - s2
 			
 			#rjob = backend.retrieve_job(job.job_id())
@@ -399,3 +405,131 @@ def main(backend, user_messenger, **kwargs):
 	}
 
 	return serialized_result
+
+def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level,seed_transpiler):
+	if isinstance(circuits, list):
+		circuits = circuits.copy()
+	else:
+		circuits = [circuits]
+
+	compile_config = {
+		"initial_layout": None,
+		"seed_transpiler": seed_transpiler,
+		"optimization_level": optimization_level,
+	}
+
+	qjob_config = (
+		{"timeout": None} # if self.is_local else {"timeout": None, "wait": wait}
+	)
+
+	skip_qobj_validation = True
+	max_job_retries = int(1e18)
+	noise_config = {}
+	callback = None
+
+	COMPLETE_MEAS_FITTER = 0
+	TENSORED_MEAS_FITTER = 1
+
+	qobj = assemble(circuits)
+	time_taken = 0
+	meas_type = COMPLETE_MEAS_FITTER
+	if error_mitigation_cls == TensoredMeasFitter:
+		meas_type = TENSORED_MEAS_FITTER
+	
+	run_config = RunConfig(shots=shots)
+
+	qubit_index, qubit_mappings = (
+		get_measured_qubits_from_qobj(qobj)
+	)
+
+	mit_pattern = [[i] for i in range(len(qubit_index))]
+
+	qubit_index_str = "_".join([str(x) for x in qubit_index]) + "_{}".format(shots)
+	meas_error_mitigation_fitter = None
+
+	build_cals_matrix = meas_error_mitigation_fitter is None
+
+	cal_circuits = None
+	prepended_calibration_circuits: int = 0
+	if build_cals_matrix:
+		temp_run_config = copy.deepcopy(run_config)
+		
+		(
+			cals_qobj,
+			state_labels,
+			circuit_labels,
+		) = build_measurement_error_mitigation_qobj(
+			qubit_index,
+			error_mitigation_cls,
+			backend,
+			{},
+			compile_config,
+			temp_run_config,
+			mit_pattern=mit_pattern,
+		)
+
+		# insert the calibration circuit into main qobj if the shots are the same
+		qobj.experiments[0:0] = cals_qobj.experiments
+		result = run_qobj(
+			qobj,
+			backend,
+			qjob_config,
+			None,
+			noise_config,
+			skip_qobj_validation,
+			callback,
+			max_job_retries,
+		)
+		time_taken += result.time_taken
+		cals_result = result
+
+		if meas_type == COMPLETE_MEAS_FITTER:
+			meas_error_mitigation_fitter = error_mitigation_cls(
+			cals_result, state_labels, qubit_list=qubit_index, circlabel=circuit_labels
+			)
+		elif meas_type == TENSORED_MEAS_FITTER:
+			meas_error_mitigation_fitter = error_mitigation_cls(
+			cals_result, mit_pattern=state_labels, circlabel=circuit_labels
+			)
+	
+	if meas_error_mitigation_fitter is not None:
+		if (
+			hasattr(run_config, "parameterizations")
+			and len(run_config.parameterizations) > 0
+			and len(run_config.parameterizations[0]) > 0
+			and len(run_config.parameterizations[0][0]) > 0
+		):
+			num_circuit_templates = len(run_config.parameterizations)
+			num_param_variations = len(run_config.parameterizations[0][0])
+			num_circuits = num_circuit_templates * num_param_variations
+		else:
+			input_circuits = circuits[prepended_calibration_circuits:]
+			num_circuits = len(input_circuits)
+		skip_num_circuits = len(result.results) - num_circuits
+		#  remove the calibration counts from result object to assure the length of
+		#  ExperimentalResult is equal length to input circuits
+		result.results = result.results[skip_num_circuits:]
+		tmp_result = copy.deepcopy(result)
+		for qubit_index_str, c_idx in qubit_mappings.items():
+			curr_qubit_index = [int(x) for x in qubit_index_str.split("_")]
+			tmp_result.results = [result.results[i] for i in c_idx]
+			
+			if curr_qubit_index == qubit_index:
+				tmp_fitter = meas_error_mitigation_fitter
+			elif meas_type == COMPLETE_MEAS_FITTER:
+				tmp_fitter = meas_error_mitigation_fitter.subset_fitter(curr_qubit_index)
+			else:
+				tmp_fitter = meas_error_mitigation_fitter
+	
+			tmp_result = tmp_fitter.filter.apply(
+				tmp_result, "least_squares"
+			)
+			for i, n in enumerate(c_idx):
+				# convert counts to integer and remove 0 values
+				tmp_result.results[i].data.counts = {
+					k: round(v)
+					for k, v in tmp_result.results[i].data.counts.items()
+					if round(v) != 0
+				}
+				result.results[n] = tmp_result.results[i]
+	return result
