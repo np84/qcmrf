@@ -41,12 +41,12 @@ runtime_inputs = {
 with open('account.json', 'r') as accountfile:
 	account = json.load(accountfile)
 
-IBMQ.enable_account(account.token, account.url)
+IBMQ.enable_account(account['token'], account['url'])
 
 provider = IBMQ.get_provider(
-	hub=account.hub,
-	group=account.group,
-	project=account.project
+	hub=account['hub'],
+	group=account['group'],
+	project=account['project']
 )
 
 with open('program_id.json', 'r') as idfile:
