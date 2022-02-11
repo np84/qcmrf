@@ -14,7 +14,7 @@ def test():
 		"betas": None,
 		"repetitions": 10,
 		"shots": 32000,
-		"layout": None,
+		"layout":  [0, 1, 4, 7, 6, 2, 3, 5],
 		"measurement_error_mitigation": True,
 		"optimization_level": 3
 	}

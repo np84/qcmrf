@@ -2,8 +2,16 @@ import os
 from qiskit import IBMQ
 import json
 
-IBMQ.load_account()
-provider = IBMQ.get_provider(project='ticket')  # Substitute with your provider.
+with open('account.json', 'r') as accountfile:
+	account = json.load(accountfile)
+
+IBMQ.enable_account(account.token, account.url)
+
+provider = IBMQ.get_provider(
+	hub=account.hub,
+	group=account.group,
+	project=account.project
+)
 
 qcmrf_data = os.path.join(os.getcwd(), "./qcmrf_runtime.py")
 qcmrf_json = os.path.join(os.getcwd(), "./qcmrf_runtime.json")

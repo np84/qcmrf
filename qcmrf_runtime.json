@@ -32,11 +32,11 @@
         },
         "layout": {
           "type": "List[int]",
-          "description": "List of qubits. DISABLED"
+          "description": "List of qubits."
         },
         "measurement_error_mitigation": {
-          "type": "bool",
-          "description": "Whether to apply measurement error mitigation. Default: True"
+          "type": "int",
+          "description": "Whether to apply measurement error mitigation. Default: No mitigation (0). 1: CompleteMeasFitter, 2: TensoredMeasFitter."
         },
         "optimization_level": {
           "type": "int",

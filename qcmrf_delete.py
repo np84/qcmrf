@@ -2,8 +2,16 @@ import os
 import json
 from qiskit import IBMQ
 
-IBMQ.load_account()
-provider = IBMQ.get_provider(project='ticket')  # Substitute with your provider.
+with open('account.json', 'r') as accountfile:
+	account = json.load(accountfile)
+
+IBMQ.enable_account(account.token, account.url)
+
+provider = IBMQ.get_provider(
+	hub=account.hub,
+	group=account.group,
+	project=account.project
+)
 
 with open('program_id.json', 'r') as idfile:
 	res = json.load(idfile)

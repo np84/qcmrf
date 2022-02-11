@@ -24,6 +24,8 @@ from qiskit.opflow import I, X, Z, MatrixOp
 from qiskit.compiler import transpile
 from qiskit import QuantumCircuit
 from qiskit.providers.backend import Backend
+from qiskit.circuit import QuantumRegister
+from qiskit.transpiler import Layout
 
 from qiskit.compiler import assemble
 from qiskit.assembler.run_config import RunConfig
@@ -279,7 +281,7 @@ def extract_probs(R,n,a):
 	
 	return P/z, z
 
-def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callback=None,measurement_error_mitigation=True,optimization_level=3):
+def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callback=None,measurement_error_mitigation=0,optimization_level=3):
 	for i in range(len(graphs)):
 		for j in range(repetitions):
 			if betas is not None:
@@ -293,9 +295,16 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				C = QCMRF(graphs[i],gamma=gammas[i],beta=b)
 			else:
 				C = QCMRF(graphs[i],beta=b)
+				
+			if len(layout) < C.num_vertices+C.num_cliques:
+				raise ValueError(
+					"Layout has not enough qubits. Expected: " + str(C.num_vertices+C.num_cliques) + " (at least)"
+				)
+
+			LAY = layout[:C.num_vertices+C.num_cliques]
 
 			s1 = time.time()
-			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=layout[:C.num_vertices])
+			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
 			s1 = time.time() - s1		
 			
 			s2 = time.time()
@@ -304,11 +313,15 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				result = job.result()
 				
 			else:
-				result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=TensoredMeasFitter, optimization_level=optimization_level, seed_transpiler=42, initial_layout=layout[:C.num_vertices])
+				cls = None
+				if measurement_error_mitigation == 1:
+					cls = CompleteMeasFitter
+				elif measurement_error_mitigation == 2:
+					cls = TensoredMeasFitter
+					
+				result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=cls, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
 			s2 = time.time() - s2
-			
-			#rjob = backend.retrieve_job(job.job_id())
-			#rjob.wait_for_final_state()
+
 			s3 = time.time()
 			P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
 			s3 = time.time() - s3
@@ -344,7 +357,7 @@ def main(backend, user_messenger, **kwargs):
 	shots = kwargs.get("shots", 8192)
 	serialized_inputs["shots"] = shots
 
-	measurement_error_mitigation = kwargs.get("measurement_error_mitigation", False)
+	measurement_error_mitigation = kwargs.get("measurement_error_mitigation", 0)
 	serialized_inputs["measurement_error_mitigation"] = measurement_error_mitigation
 
 	optimization_level = kwargs.get("optimization_level", 3)
@@ -353,10 +366,8 @@ def main(backend, user_messenger, **kwargs):
 	layout = kwargs.get("layout", None)
 	serialized_inputs["layout"] = layout
 
-	# publisher for user-server communication
 	publisher = Publisher(user_messenger)
 	
-	# dictionary to store the history of the runs
 	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": []}
 
 	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time):
@@ -430,13 +441,12 @@ def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level
 	COMPLETE_MEAS_FITTER = 0
 	TENSORED_MEAS_FITTER = 1
 
-	qobj = assemble(circuits)
+	run_config = RunConfig(shots=shots)
+	qobj = assemble(circuits,shots=shots)
 	time_taken = 0
 	meas_type = COMPLETE_MEAS_FITTER
 	if error_mitigation_cls == TensoredMeasFitter:
 		meas_type = TENSORED_MEAS_FITTER
-	
-	run_config = RunConfig(shots=shots)
 
 	qubit_index, qubit_mappings = (
 		get_measured_qubits_from_qobj(qobj)
@@ -459,7 +469,7 @@ def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level
 			state_labels,
 			circuit_labels,
 		) = build_measurement_error_mitigation_qobj(
-			qubit_index,
+			initial_layout, #qubit_index,
 			error_mitigation_cls,
 			backend,
 			{},
