@@ -39,6 +39,8 @@ from qiskit.utils.measurement_error_mitigation import (
 	build_measurement_error_mitigation_qobj,
 )
 
+from qiskit.providers.aer.backends.qasm_simulator import QasmSimulator
+
 class Publisher:
 	"""Class used to publish interim results."""
 
@@ -63,7 +65,8 @@ class QCMRF(QuantumCircuit):
 		theta=None,
 		gamma=None,
 		beta : float = 1,
-		name: str = "QCMRF"
+		name: str = "QCMRF",
+		backend=None
 	):
 		r"""
 		Args:
@@ -79,6 +82,7 @@ class QCMRF(QuantumCircuit):
 		self._gamma = gamma
 		self._beta = beta
 		self._name = name
+		self._backend = backend
 		
 		if type(self._cliques) != list or type(self._cliques[0]) != list or type(self._cliques[0][0]) != int:
 			raise ValueError(
@@ -237,7 +241,9 @@ class QCMRF(QuantumCircuit):
 			factor = MatrixOp(M)
 			
 			# Create "instruction" which can be used in another circuit
-			u = self._conjugateBlocks(factor).to_circuit().to_instruction(label='U_C('+str(ii)+')')
+			u = self._conjugateBlocks(factor).to_circuit() #.to_instruction(label='U_C('+str(ii)+')')
+
+			u = transpile(u, backend=self._backend, optimization_level=3).to_gate()
 
 			# RUS for real part extraction
 			self.h(self._n + ii)
@@ -290,11 +296,11 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				b = 1
 
 			if thetas is not None:
-				C = QCMRF(graphs[i],theta=thetas[i],beta=b)
+				C = QCMRF(graphs[i],theta=thetas[i],beta=b,backend=backend)
 			elif gammas is not None:
-				C = QCMRF(graphs[i],gamma=gammas[i],beta=b)
+				C = QCMRF(graphs[i],gamma=gammas[i],beta=b,backend=backend)
 			else:
-				C = QCMRF(graphs[i],beta=b)
+				C = QCMRF(graphs[i],beta=b,backend=backend)
 				
 			if len(layout) < C.num_vertices+C.num_cliques:
 				raise ValueError(
@@ -429,9 +435,14 @@ def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level
 		"optimization_level": optimization_level,
 	}
 
-	qjob_config = (
-		{"timeout": None, "wait": 5.0}
-	)
+	if type(backend) == QasmSimulator:
+		qjob_config = (
+			{"timeout": None}
+		)
+	else:
+		qjob_config = (
+			{"timeout": None, "wait": 5.0}
+		)
 
 	skip_qobj_validation = True
 	max_job_retries = int(1e18)

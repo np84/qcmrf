@@ -15,7 +15,7 @@ def test():
 		"repetitions": 10,
 		"shots": 32000,
 		"layout":  [0, 1, 4, 7, 6, 2, 3, 5],
-		"measurement_error_mitigation": True,
+		"measurement_error_mitigation": 1,
 		"optimization_level": 3
 	}
 	user_messenger = UserMessenger()

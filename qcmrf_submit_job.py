@@ -32,7 +32,7 @@ runtime_inputs = {
 		"gammas": None,
 		"betas": None,
 		"repetitions": 10,
-		"shots": 64000,
+		"shots": 48000,
 		"layout": layout,
 		"measurement_error_mitigation": 0,
 		"optimization_level": 3
