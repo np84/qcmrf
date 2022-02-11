@@ -34,7 +34,7 @@ runtime_inputs = {
 		"repetitions": 10,
 		"shots": 48000,
 		"layout": layout,
-		"measurement_error_mitigation": 0,
+		"measurement_error_mitigation": 2,
 		"optimization_level": 3
 	}
 

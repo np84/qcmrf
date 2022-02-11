@@ -65,8 +65,8 @@ class QCMRF(QuantumCircuit):
 		theta=None,
 		gamma=None,
 		beta : float = 1,
-		name: str = "QCMRF",
-		backend=None
+		name: str = "QCMRF"#,
+		#backend=None
 	):
 		r"""
 		Args:
@@ -82,7 +82,7 @@ class QCMRF(QuantumCircuit):
 		self._gamma = gamma
 		self._beta = beta
 		self._name = name
-		self._backend = backend
+		#self._backend = backend
 		
 		if type(self._cliques) != list or type(self._cliques[0]) != list or type(self._cliques[0][0]) != int:
 			raise ValueError(
@@ -243,7 +243,7 @@ class QCMRF(QuantumCircuit):
 			# Create "instruction" which can be used in another circuit
 			u = self._conjugateBlocks(factor).to_circuit() #.to_instruction(label='U_C('+str(ii)+')')
 
-			u = transpile(u, backend=self._backend, optimization_level=3).to_gate()
+			u = transpile(u, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'], optimization_level=3).to_instruction(label='U_C('+str(ii)+')')
 
 			# RUS for real part extraction
 			self.h(self._n + ii)
@@ -296,11 +296,11 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				b = 1
 
 			if thetas is not None:
-				C = QCMRF(graphs[i],theta=thetas[i],beta=b,backend=backend)
+				C = QCMRF(graphs[i],theta=thetas[i],beta=b)
 			elif gammas is not None:
-				C = QCMRF(graphs[i],gamma=gammas[i],beta=b,backend=backend)
+				C = QCMRF(graphs[i],gamma=gammas[i],beta=b)
 			else:
-				C = QCMRF(graphs[i],beta=b,backend=backend)
+				C = QCMRF(graphs[i],beta=b)
 				
 			if len(layout) < C.num_vertices+C.num_cliques:
 				raise ValueError(
