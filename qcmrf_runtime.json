@@ -32,7 +32,7 @@
         },
         "layout": {
           "type": "List[int]",
-          "description": "List of qubits."
+          "description": "List of qubits. Default: None. Required when measurement_error_mitigation != 0."
         },
         "measurement_error_mitigation": {
           "type": "int",
