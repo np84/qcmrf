@@ -51,15 +51,15 @@ for T in TASKS:
 	print(T)
 	runtime_inputs = {
 			"graphs": T,
-			"thetas": None,
-			"gammas": None,
-			"betas": None,
 			"repetitions": 10,
 			"shots": 100000,
 			"layout": layout,
 			"measurement_error_mitigation": 2,
 			"optimization_level": 3
 		}
+
+	if backend == 'ibmq_qasm_simulator':
+		runtime_inputs['measurement_error_mitigation'] = 0
 
 	job = provider.runtime.run(
 		program_id=res['program_id'],
