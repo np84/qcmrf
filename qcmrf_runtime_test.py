@@ -8,14 +8,14 @@ import qcmrf_runtime as qcmrf
 def test():
 	backend = Aer.get_backend('qasm_simulator')
 	inputs = {
-		"graphs": [[[0]],[[0,1]],[[0,1],[1,2]]],
+		"graphs": [[[0,1],[1,2]]],
 		"thetas": None,
 		"gammas": None,
 		"betas": None,
-		"repetitions": 10,
-		"shots": 32000,
+		"repetitions": 3,
+		"shots": 100000,
 		"layout":  [0, 1, 4, 7, 6, 2, 3, 5],
-		"measurement_error_mitigation": 1,
+		"measurement_error_mitigation": 0,
 		"optimization_level": 3
 	}
 	user_messenger = UserMessenger()

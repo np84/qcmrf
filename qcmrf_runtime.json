@@ -1,7 +1,7 @@
 {
   "name": "qcmrf",
   "description": "Quantum Circuit Markov Random Fields.",
-  "max_execution_time": 25200,
+  "max_execution_time": 28000,
   "spec": {
     "parameters": {
       "$schema": "https://json-schema.org/draft/2019-09/schema",

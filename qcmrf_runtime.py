@@ -65,8 +65,8 @@ class QCMRF(QuantumCircuit):
 		theta=None,
 		gamma=None,
 		beta : float = 1,
-		name: str = "QCMRF"#,
-		#backend=None
+		name: str = "QCMRF",
+		qubit_hack=True
 	):
 		r"""
 		Args:
@@ -82,7 +82,7 @@ class QCMRF(QuantumCircuit):
 		self._gamma = gamma
 		self._beta = beta
 		self._name = name
-		#self._backend = backend
+		self._qubit_hack = qubit_hack
 		
 		if type(self._cliques) != list or type(self._cliques[0]) != list or type(self._cliques[0][0]) != int:
 			raise ValueError(
@@ -90,8 +90,8 @@ class QCMRF(QuantumCircuit):
 			)
 		
 		self._num_cliques = len(self._cliques)
-		self._n = self._cliques[0][0] # first vertex of first clique
 		
+		self._n = self._cliques[0][0] # first vertex of first clique
 		for C in cliques:
 			for v in C:
 				if v > self._n:
@@ -117,7 +117,11 @@ class QCMRF(QuantumCircuit):
 				"The QCMRF parameter vector has an incorrect dimension. Expected: " + str(self._dim)
 			)
 
-		super().__init__(self._n + self._num_cliques, self._n + self._num_cliques, name=name)
+		self._mrfqubits = self._n + self._num_cliques + 1
+		if self._qubit_hack:
+			self._mrfqubits -= 1
+
+		super().__init__(self._mrfqubits, self._mrfqubits if self._qubit_hack else self._mrfqubits - 1, name=name)
 		
 		self._build()
 
@@ -155,7 +159,7 @@ class QCMRF(QuantumCircuit):
 		Returns:
 			int: number of cliques.
 		"""
-		return len(self._cliques)
+		return self._num_cliques
 
 	@property
 	def max_clique(self):
@@ -165,9 +169,39 @@ class QCMRF(QuantumCircuit):
 			int: size of largest clique.
 		"""
 		return self._c_max
+		
+	@property
+	def theta(self):
+		"""Returns the parameters of the Markov random field.
+
+		Returns:
+			List[float]: List of real-valued parameters.
+		"""
+		if self._theta is None:
+			self._theta = []
+			for g in self._gamma:
+				w = 2*np.log(np.cos(2*g))/self._beta
+				self._theta.append(w)
+
+		return self._theta
+
+	@property
+	def gamma(self):
+		"""Returns the parameters of the Circuit, computed from theta and beta.
+
+		Returns:
+			List[float]: List of real-valued parameters.
+		"""
+		if self._gamma is None:
+			self._gamma = []
+			for w in self._theta:
+				g = 0.5 * np.arccos(np.exp(self._beta*0.5*w))
+				self._gamma.append(g)
+
+		return self._gamma
 
 	def sufficient_statistic(self,C,y):
-		"""Returns the Pauli-Markov sufficient statistic for clique-state pair (C,y)
+		"""Computes the Pauli-Markov sufficient statistic for clique-state pair (C,y)
 
 		Returns:
 			PauliSumOp: opflow representation of Pauli-Markov sufficient statistic
@@ -188,19 +222,17 @@ class QCMRF(QuantumCircuit):
 
 		return result
 		
-	def groundtruthHamiltonian(self):
+	def Hamiltonian(self):
+		"""Computes the Hamiltonian of the MRF
+
+		Returns:
+			PauliSumOp: opflow representation of the Hamiltonian
+		"""
 		H = 0
 		i = 0
 		for C in self._cliques:
 			for y in list(itertools.product([0, 1], repeat=len(C))):
-				Phi = self.sufficient_statistic(C,y)
-				
-				if self._theta is not None:
-					w = self._beta * self._theta[i]
-				elif self._gamma is not None:
-					w = 2*np.log(np.cos(self._gamma[i]))
-				
-				H += Phi * -w
+				H += -self.theta[i] * self.sufficient_statistic(C,y)
 				i += 1
 		return H
 
@@ -210,11 +242,16 @@ class QCMRF(QuantumCircuit):
 
 	def _build(self):
 		"""Return the actual QCMRF."""
+		
+		num_main_qubits = self._n
+		if not self._qubit_hack:
+			num_main_qubits += 1
 
-		for i in range(self._n):
+		for i in range(num_main_qubits):
 			self.h(i)
 		self.barrier()
-		
+
+		# init parameters uniformly if none are provided
 		if self._theta is None and self._gamma is None:
 			self._theta = []
 			for i in range(self._dim):
@@ -222,34 +259,35 @@ class QCMRF(QuantumCircuit):
 
 		i = 0
 		for ii,C in enumerate(self._cliques):
+
+			# Construct U^C(gamma(theta_C))
 			factor = I^(self._n+1)
 			for y in list(itertools.product([0, 1], repeat=len(C))):
 				Phi = self.sufficient_statistic(C,y)
 				U = (X^((I^(self._n))-Phi)) + (Z^Phi)
-
-				if self._theta is not None:
-					w = 0.5 * np.arccos(np.exp(self._beta*0.5*self._theta[i]))
-				elif self._gamma is not None:
-					w = self._gamma[i]
-				i += 1
-
-				RZ = (-w * Z).exp_i() ^ (I^self._n)
+				RZ = (-self.gamma[i] * Z).exp_i() ^ (I^self._n)
 				Ugam = (RZ @ U)**2
 				factor = Ugam @ factor
+				i += 1
 
-			M = factor.to_matrix()[:2**(self._n),:2**(self._n)] # hack to reduce aux qubits by 1, works only for small n
-			factor = MatrixOp(M)
-			
-			# Create "instruction" which can be used in another circuit
-			u = self._conjugateBlocks(factor).to_circuit() #.to_instruction(label='U_C('+str(ii)+')')
+			# The "qubit hack" allows us to numerically remove the qubit required for
+			# the unitary embedding. This does neither alter the output distribution
+			# nor does it affect the success probability. As can be seen from extract_probs,
+			# both values for that qubit are accepted.
+			if self._qubit_hack:
+				M = factor.to_matrix()[:2**(self._n),:2**(self._n)]
+				factor = MatrixOp(M)
 
-			u = transpile(u, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'], optimization_level=3).to_instruction(label='U_C('+str(ii)+')')
+			u = self._conjugateBlocks(factor).to_circuit()
+
+			# intermediate transpilation
+			u = transpile(u, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'], optimization_level=3).to_instruction(label='U^C('+str(ii)+')')
 
 			# RUS for real part extraction
-			self.h(self._n + ii)
-			self.append(u, [j for j in range(self._n)]+[self._n + ii])
-			self.h(self._n + ii)
-			self.measure(self._n + ii, self._n + ii) # real part extraction successful when measure 0
+			self.h(num_main_qubits + ii)
+			self.append(u, [j for j in range(num_main_qubits)]+[num_main_qubits + ii])
+			self.h(num_main_qubits + ii)
+			self.measure(num_main_qubits + ii, num_main_qubits + ii if self._qubit_hack else num_main_qubits - 1 + ii) # real part extraction successful when measure 0
 
 			self.barrier()
 		self.measure(range(self._n),range(self._n))
@@ -278,42 +316,44 @@ def extract_probs(R,n,a):
 		s = ''
 		for b in y:
 			s += str(b)
+
 		s0 = '0'*a + s
 
 		if s0 in R:
-			P[i] += R[s0]
-			
+			P[i] += R[s0]		
 	z = np.sum(P)
 	
 	return P/z, z
 
 def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callback=None,measurement_error_mitigation=0,optimization_level=3):
+	np.random.seed(1984)
 	for i in range(len(graphs)):
 		for j in range(repetitions):
-			if betas is not None:
-				b = betas[i]
-			else:
-				b = 1
 
-			if thetas is not None:
-				C = QCMRF(graphs[i],theta=thetas[i],beta=b)
-			elif gammas is not None:
-				C = QCMRF(graphs[i],gamma=gammas[i],beta=b)
-			else:
-				C = QCMRF(graphs[i],beta=b)
+			beta  =  betas[i] if ( betas is not None) else 1
+			theta = thetas[i] if (thetas is not None) else None
+			gamma = gammas[i] if (gammas is not None) else None
+
+			s2 = time.time()
+			C = QCMRF(graphs[i], theta=theta, gamma=gamma, beta=beta)
+
+			if layout is not None:
+				nvars = C.num_vertices+C.num_cliques
 				
-			if len(layout) < C.num_vertices+C.num_cliques:
-				raise ValueError(
-					"Layout has not enough qubits. Expected: " + str(C.num_vertices+C.num_cliques) + " (at least)"
-				)
-
-			LAY = layout[:C.num_vertices+C.num_cliques]
+				if len(layout) < nvars:
+					raise ValueError(
+						"Layout has not enough qubits. Expected: " + str(C.num_vertices+C.num_cliques) + " (at least)"
+					)
+				LAY = layout[:nvars]
+			else:
+				LAY = None
+			s2 = time.time() - s2
 
 			s1 = time.time()
 			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
 			s1 = time.time() - s1		
 			
-			s2 = time.time()
+			s3 = time.time()
 			if not measurement_error_mitigation:
 				job = backend.run(T, shots=shots)
 				result = job.result()
@@ -326,18 +366,16 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 					cls = TensoredMeasFitter
 					
 				result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=cls, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
-			s2 = time.time() - s2
 
-			s3 = time.time()
 			P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
 			s3 = time.time() - s3
 			
-			H = C.groundtruthHamiltonian()
-			RHO = expm(-b*H.to_matrix())
+			H = C.Hamiltonian()
+			RHO = expm(-beta*H.to_matrix())
 			z = np.trace(RHO)
 			Q = np.diag(RHO)/z
 			
-			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2, s3)
+			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2, s3, C.theta)
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
@@ -374,9 +412,9 @@ def main(backend, user_messenger, **kwargs):
 
 	publisher = Publisher(user_messenger)
 	
-	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": []}
+	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": [], "theta": []}
 
-	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time):
+	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta):
 		# store information
 		history["n"].append(n)
 		history["d"].append(d)
@@ -391,8 +429,9 @@ def main(backend, user_messenger, **kwargs):
 		history["transpile_time"].append(transpile_time)
 		history["prepare_time"].append(prepare_time)
 		history["exec_time"].append(exec_time)
+		history["theta"].append(theta)
 		# and forward information to users callback
-		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time)
+		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta)
 
 	result = run(
 		backend,

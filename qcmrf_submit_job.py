@@ -18,26 +18,13 @@ options = {
 if args.layout is not None:
 	layout = args.layout
 elif args.autolayout:
-	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22]}
+	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22],'ibmq_montreal':[3,5,8,9,11,14,16,19,13,20,22,12]}
 	layout = layouts[backend]
 else:
 	layout = None
 
 print("LAYOUT FOR",backend,':',layout)
 
-runtime_inputs = {
-		#"graphs": [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[0,3]],[[0,1,2,3]]],
-		#"graphs": [[[0,1],[1,2],[2,3],[3,4]],[[0,1],[1,2],[2,3],[3,4],[4,5]],[[0,1,2]],[[0,1,2],[2,3,4]],[[0,1,2],[2,3,4],[4,5,6]]],
-		"graphs": [[[0]],[[0,1]],[[0,1],[1,2]],[[0,1],[1,2],[2,3]]],
-		"thetas": None,
-		"gammas": None,
-		"betas": None,
-		"repetitions": 10,
-		"shots": 48000,
-		"layout": layout,
-		"measurement_error_mitigation": 0,
-		"optimization_level": 3
-	}
 
 with open('account.json', 'r') as accountfile:
 	account = json.load(accountfile)
@@ -58,14 +45,27 @@ with open('program_id.json', 'r') as idfile:
 
 print(res)
 
-job = provider.runtime.run(
-	program_id=res['program_id'],
-	options=options,
-	inputs=runtime_inputs,
-	callback=print
-)
+TASKS = [[[[0]],[[0,1]],[[0,1],[1,2]]],[[[0,1],[1,2],[2,3]]],[[[0,1],[1,2],[2,3],[0,3]]],[[[0,1],[1,2],[2,3],[3,4]]],[[[0,1],[1,2],[2,3],[3,4],[4,5]]],[[[0,1,2,3]]],[[[0,1,2]],[[0,1,2],[2,3,4]]],[[[0,1,2],[2,3,4],[4,5,6]]]]
 
-print(job.job_id(),job.status())
+for T in TASKS:
+	print(T)
+	runtime_inputs = {
+			"graphs": T,
+			"thetas": None,
+			"gammas": None,
+			"betas": None,
+			"repetitions": 10,
+			"shots": 100000,
+			"layout": layout,
+			"measurement_error_mitigation": 2,
+			"optimization_level": 3
+		}
 
-# Get results
-#result = job.result()
+	job = provider.runtime.run(
+		program_id=res['program_id'],
+		options=options,
+		inputs=runtime_inputs,
+		callback=print
+	)
+
+	print(job.job_id(),job.status())
