@@ -26,6 +26,7 @@ from qiskit import QuantumCircuit
 from qiskit.providers.backend import Backend
 from qiskit.circuit import QuantumRegister
 from qiskit.transpiler import Layout
+from qiskit.circuit import ParameterVector
 
 from qiskit.compiler import assemble
 from qiskit.assembler.run_config import RunConfig
@@ -362,6 +363,7 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				cls = None
 				if measurement_error_mitigation == 1:
 					cls = CompleteMeasFitter
+
 				elif measurement_error_mitigation == 2:
 					cls = TensoredMeasFitter
 					
@@ -375,7 +377,72 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 			z = np.trace(RHO)
 			Q = np.diag(RHO)/z
 			
-			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2, s3, C.theta)
+			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2, s3, C.theta, result.get_counts())
+
+
+def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measurement_error_mitigation=0,optimization_level=3):
+	np.random.seed(1984)
+
+	dim = len(mu)
+	theta = np.zeros(dim)
+
+	for ii in range(iterations):
+
+		CC = QCMRF(graph, theta=theta)
+
+		if layout is not None:
+			nvars = CC.num_vertices+CC.num_cliques			
+			if len(layout) < nvars:
+				raise ValueError(
+					"Layout has not enough qubits. Expected: " + str(CC.num_vertices+CC.num_cliques) + " (at least)"
+				)
+				LAY = layout[:nvars]
+		else:
+			LAY = None
+
+		T = transpile(CC, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
+
+		if not measurement_error_mitigation:
+			job = backend.run(T, shots=shots)
+			result = job.result()
+				
+		else:
+			cls = None
+			if measurement_error_mitigation == 1:
+				cls = CompleteMeasFitter
+			elif measurement_error_mitigation == 2:
+				cls = TensoredMeasFitter
+					
+			result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=cls, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
+
+		P, c = extract_probs(result.get_counts(), CC.num_vertices, CC.num_cliques)
+
+		L = 0
+		for x in data:
+			L -= np.log(P[int(x, 2)])
+		L *= 1/len(data)
+		
+		mu_hat = np.zeros(dim)
+		Y = list(itertools.product([0, 1], repeat=CC.num_vertices))
+		for i,x in enumerate(Y):
+			temp = np.zeros(dim)
+			off = 0
+			for C in graph:
+				s = ''
+				for v in C:
+					s += str(x[v])
+				yn = int(s, 2)
+				temp[off+yn] = 1
+				off += 2**len(C)
+			mu_hat += P[i] * temp
+			
+		grad = np.array(mu) - mu_hat
+		
+		theta += 0.1 * grad
+
+		theta -= np.max(theta)
+
+		callback(CC.num_vertices, CC.dimension, CC.num_cliques, CC.max_clique, c/shots, len(T), T.depth(), shots, ii, L)
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
@@ -385,13 +452,18 @@ def main(backend, user_messenger, **kwargs):
 	if len(missing) > 0:
 		raise ValueError(f"The following mandatory arguments are missing: {missing}.")
 
+	train_mode = kwargs.get("train",False)
+
 	# Extract the input form the kwargs and build serializable kwargs for book keeping.
 	serialized_inputs = {}
 	serialized_inputs["graphs"] = kwargs["graphs"]
 	serialized_inputs["thetas"] = kwargs.get("thetas",None)
 	serialized_inputs["gammas"] = kwargs.get("gammas",None)
-	serialized_inputs["betas"]  = kwargs.get("betas",None)
+	serialized_inputs["betas"] = kwargs.get("betas",None)
+	serialized_inputs["mu"] = kwargs.get("mu",None)
+	serialized_inputs["data"] = kwargs.get("data",[])
 	serialized_inputs["repetitions"] = kwargs.get("repetitions", 1)
+	serialized_inputs["iterations"] = kwargs.get("iterations", 100)
 	serialized_inputs["shots"] = kwargs.get("shots", 8192)
 	serialized_inputs["measurement_error_mitigation"] = kwargs.get("measurement_error_mitigation", 0)
 	serialized_inputs["optimization_level"] = kwargs.get("optimization_level", 3)
@@ -399,9 +471,11 @@ def main(backend, user_messenger, **kwargs):
 
 	publisher = Publisher(user_messenger)
 	
-	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": [], "theta": []}
+	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": [], "theta": [], "counts": []}
 
-	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta):
+	history_train = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "iteration": [], "loss": []}
+
+	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta, counts):
 		# store information
 		history["n"].append(n)
 		history["d"].append(d)
@@ -417,35 +491,71 @@ def main(backend, user_messenger, **kwargs):
 		history["prepare_time"].append(prepare_time)
 		history["exec_time"].append(exec_time)
 		history["theta"].append(theta)
+		history["counts"].append(counts)
 		# and forward information to users callback
 		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta)
 
-	result = run(
-		backend,
-		serialized_inputs["graphs"],
-		serialized_inputs["thetas"],
-		serialized_inputs["gammas"],
-		serialized_inputs["betas"],
-		serialized_inputs["repetitions"],
-		serialized_inputs["shots"],
-		serialized_inputs["layout"],
-		store_history_and_forward,
-		serialized_inputs["measurement_error_mitigation"],
-		serialized_inputs["optimization_level"]
-	)
+	def store_history_and_forward_train(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss):
+		# store information
+		history_train["n"].append(n)
+		history_train["d"].append(d)
+		history_train["num_cliques"].append(num_cliques)
+		history_train["max_clique"].append(max_clique)
+		history_train["success_rate"].append(success_rate)
+		history_train["gates"].append(gates)
+		history_train["depth"].append(depth)
+		history_train["shots"].append(shots)
+		history_train["iteration"].append(iteration)
+		history_train["loss"].append(loss)
+		# and forward information to users callback
+		publisher.callback(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss)
 
-	serialized_result = {
-		"Fidelity_mean": np.mean(history['fidelity']),
-		"Fidelity_sdev": np.std(history['fidelity']),
-		"KL_mean": np.mean(history['KL']),
-		"KL_sdev": np.std(history['KL']),
-		"SR_mean": np.mean(history['success_rate']),
-		"SR_sdev": np.std(history['success_rate']),
-		"Depth_mean": np.mean(history['depth']),
-		"Depth_sdev": np.std(history['depth']),
-		"all_results": history,
-		"inputs": serialized_inputs,
-	}
+
+	if not train_mode:
+		result = run(
+			backend,
+			serialized_inputs["graphs"],
+			serialized_inputs["thetas"],
+			serialized_inputs["gammas"],
+			serialized_inputs["betas"],
+			serialized_inputs["repetitions"],
+			serialized_inputs["shots"],
+			serialized_inputs["layout"],
+			store_history_and_forward,
+			serialized_inputs["measurement_error_mitigation"],
+			serialized_inputs["optimization_level"]
+		)
+
+		serialized_result = {
+			"Fidelity_mean": np.mean(history['fidelity']),
+			"Fidelity_sdev": np.std(history['fidelity']),
+			"KL_mean": np.mean(history['KL']),
+			"KL_sdev": np.std(history['KL']),
+			"SR_mean": np.mean(history['success_rate']),
+			"SR_sdev": np.std(history['success_rate']),
+			"Depth_mean": np.mean(history['depth']),
+			"Depth_sdev": np.std(history['depth']),
+			"all_results": history,
+			"inputs": serialized_inputs
+		}
+	else:
+		result = train(
+			backend,
+			serialized_inputs["graphs"][0],
+			serialized_inputs["mu"],
+			serialized_inputs["data"],
+			serialized_inputs["shots"],
+			serialized_inputs["iterations"],
+			serialized_inputs["layout"],
+			store_history_and_forward_train,
+			serialized_inputs["measurement_error_mitigation"],
+			serialized_inputs["optimization_level"]
+		)
+
+		serialized_result = {
+			"all_results": history_train,
+			"inputs": serialized_inputs
+		}
 
 	return serialized_result
 
