@@ -388,27 +388,14 @@ def main(backend, user_messenger, **kwargs):
 	# Extract the input form the kwargs and build serializable kwargs for book keeping.
 	serialized_inputs = {}
 	serialized_inputs["graphs"] = kwargs["graphs"]
-	if kwargs["thetas"] is not None:
-		serialized_inputs["thetas"] = kwargs["thetas"]
-	if kwargs["gammas"] is not None:
-		serialized_inputs["gammas"] = kwargs["gammas"]
-	if kwargs["betas"] is not None:
-		serialized_inputs["betas"] = kwargs["betas"]
-
-	repetitions = kwargs.get("repetitions", 1)
-	serialized_inputs["repetitions"] = repetitions
-
-	shots = kwargs.get("shots", 8192)
-	serialized_inputs["shots"] = shots
-
-	measurement_error_mitigation = kwargs.get("measurement_error_mitigation", 0)
-	serialized_inputs["measurement_error_mitigation"] = measurement_error_mitigation
-
-	optimization_level = kwargs.get("optimization_level", 3)
-	serialized_inputs["optimization_level"] = optimization_level
-	
-	layout = kwargs.get("layout", None)
-	serialized_inputs["layout"] = layout
+	serialized_inputs["thetas"] = kwargs.get("thetas",None)
+	serialized_inputs["gammas"] = kwargs.get("gammas",None)
+	serialized_inputs["betas"]  = kwargs.get("betas",None)
+	serialized_inputs["repetitions"] = kwargs.get("repetitions", 1)
+	serialized_inputs["shots"] = kwargs.get("shots", 8192)
+	serialized_inputs["measurement_error_mitigation"] = kwargs.get("measurement_error_mitigation", 0)
+	serialized_inputs["optimization_level"] = kwargs.get("optimization_level", 3)
+	serialized_inputs["layout"] = kwargs.get("layout", None)
 
 	publisher = Publisher(user_messenger)
 	
@@ -435,16 +422,16 @@ def main(backend, user_messenger, **kwargs):
 
 	result = run(
 		backend,
-		kwargs["graphs"],
-		kwargs["thetas"],
-		kwargs["gammas"],
-		kwargs["betas"],
-		kwargs["repetitions"],
-		kwargs["shots"],
-		kwargs["layout"],
+		serialized_inputs["graphs"],
+		serialized_inputs["thetas"],
+		serialized_inputs["gammas"],
+		serialized_inputs["betas"],
+		serialized_inputs["repetitions"],
+		serialized_inputs["shots"],
+		serialized_inputs["layout"],
 		store_history_and_forward,
-		kwargs["measurement_error_mitigation"],
-		kwargs["optimization_level"]
+		serialized_inputs["measurement_error_mitigation"],
+		serialized_inputs["optimization_level"]
 	)
 
 	serialized_result = {

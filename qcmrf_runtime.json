@@ -12,23 +12,23 @@
         },
         "thetas": {
           "type": "list",
-          "description": "MRF parameters."
+          "description": "MRF parameters. Default: None. If thetas and gammas are both None, MRf parameters will be sampled uniformly at random MRF in [-5,0)"
         },
         "gammas": {
           "type": "list",
-          "description": "Circuit parameters."
+          "description": "Circuit parameters. Default: None"
         },
         "betas": {
           "type": "list",
-          "description": "Inverse temperatures."
+          "description": "Inverse temperatures. Default: None"
         },
         "repetitions": {
           "type": "int",
-          "description": "Number of runs per graph."
+          "description": "Number of runs per graph. Default: 1"
         },
         "shots": {
           "type": "int",
-          "description": "Number of samples per run."
+          "description": "Number of samples per run. Default: 8192"
         },
         "layout": {
           "type": "List[int]",
@@ -40,7 +40,7 @@
         },
         "optimization_level": {
           "type": "int",
-          "description": "The optimization level to run."
+          "description": "The optimization level to run. Default: 3"
         }
       },
       "required": [
