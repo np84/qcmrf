@@ -402,7 +402,7 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 				raise ValueError(
 					"Layout has not enough qubits. Expected: " + str(CC.num_vertices+CC.num_cliques) + " (at least)"
 				)
-				LAY = layout[:nvars]
+			LAY = layout[:nvars]
 		else:
 			LAY = None
 
@@ -447,7 +447,7 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 		if not adam:
 			theta += 0.1 * grad
 		else:
-			alpha = 0.1
+			alpha = 0.01
 			b1 = 0.9
 			b2 = 0.999
 			eps = 10**(-8)
