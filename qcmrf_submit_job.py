@@ -7,6 +7,7 @@ parser = argparse.ArgumentParser(description='Enqueue QCMRF experiments on qiski
 parser.add_argument('backend', metavar='backend', type=str, nargs=1, help='Qiskit backend.')
 parser.add_argument('--layout', nargs="+", type=int, help='List of qubits')
 parser.add_argument('--auto_layout', dest='autolayout', action='store_true')
+parser.add_argument('--train', dest='train', action='store_true')
 args = parser.parse_args()
 
 backend = args.backend[0]
@@ -46,26 +47,51 @@ with open('program_id.json', 'r') as idfile:
 print(res)
 
 TASKS = [
-#	[[[0]],[[0,1]],[[0,1],[1,2]]],
-#	[[[0,1],[1,2],[2,3]]],
-#	[[[0,1],[1,2],[2,3],[0,3]]],
-#	[[[0,1],[1,2],[2,3],[3,4]]],
+	[[[0]],[[0,1]],[[0,1],[1,2]]],
+	[[[0,1],[1,2],[2,3]]],
+	[[[0,1],[1,2],[2,3],[0,3]]],
+	[[[0,1],[1,2],[2,3],[3,4]]],
 	[[[0,1,2,3]]],
 	[[[0,1,2]],[[0,1,2],[2,3,4]]],
-	[[[0,1],[1,2],[2,3],[3,4],[4,5]]],
-	[[[0,1,2],[2,3,4],[4,5,6]]]
+#	[[[0,1],[1,2],[2,3],[3,4],[4,5]]],
+#	[[[0,1,2],[2,3,4],[4,5,6]]]
 ]
 
-for T in TASKS:
-	print(T)
+if not args.train:
+	for T in TASKS:
+		print(T)
+		runtime_inputs = {
+				"graphs": T,
+				"repetitions": 10,
+				"shots": 32000,
+				"layout": layout,
+				"measurement_error_mitigation": 2,
+				"optimization_level": 3
+			}
+
+		if backend == 'ibmq_qasm_simulator':
+			runtime_inputs['measurement_error_mitigation'] = 0
+
+		job = provider.runtime.run(
+			program_id=res['program_id'],
+			options=options,
+			inputs=runtime_inputs,
+			callback=print
+		)
+
+		print(job.job_id(),job.status())
+		
+else:
 	runtime_inputs = {
-			"graphs": T,
-			"repetitions": 10,
-			"shots": 32000,
-			"layout": layout,
-			"measurement_error_mitigation": 2,
-			"optimization_level": 3
-		}
+		"graphs": [[[0,1],[1,2]]],
+		"mu": [0.3,0,0,0.7,0.1,0.2,0.1,0.6],
+		"data": ['000','001','001','110','111','111','111','111','111','111'],
+		"iterations": 100,
+		"train": True,
+		"adam": True,
+		"shots": 100000,
+		"measurement_error_mitigation": 2,
+	}
 
 	if backend == 'ibmq_qasm_simulator':
 		runtime_inputs['measurement_error_mitigation'] = 0

@@ -380,11 +380,17 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2, s3, C.theta, result.get_counts())
 
 
-def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measurement_error_mitigation=0,optimization_level=3):
+def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measurement_error_mitigation=0,optimization_level=3,adam=True):
 	np.random.seed(1984)
 
 	dim = len(mu)
 	theta = np.zeros(dim)
+
+	if adam:
+		m1 = np.zeros(dim)
+		m2 = np.zeros(dim)
+		v1 = np.zeros(dim)
+		v2 = np.zeros(dim)
 
 	for ii in range(iterations):
 
@@ -405,14 +411,14 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 		if not measurement_error_mitigation:
 			job = backend.run(T, shots=shots)
 			result = job.result()
-				
+
 		else:
 			cls = None
 			if measurement_error_mitigation == 1:
 				cls = CompleteMeasFitter
 			elif measurement_error_mitigation == 2:
 				cls = TensoredMeasFitter
-					
+
 			result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=cls, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
 
 		P, c = extract_probs(result.get_counts(), CC.num_vertices, CC.num_cliques)
@@ -421,7 +427,7 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 		for x in data:
 			L -= np.log(P[int(x, 2)])
 		L *= 1/len(data)
-		
+
 		mu_hat = np.zeros(dim)
 		Y = list(itertools.product([0, 1], repeat=CC.num_vertices))
 		for i,x in enumerate(Y):
@@ -435,14 +441,27 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 				temp[off+yn] = 1
 				off += 2**len(C)
 			mu_hat += P[i] * temp
-			
+
 		grad = np.array(mu) - mu_hat
-		
-		theta += 0.1 * grad
 
-		theta -= np.max(theta)
+		if not adam:
+			theta += 0.1 * grad
+		else:
+			alpha = 0.1
+			b1 = 0.9
+			b2 = 0.999
+			eps = 10**(-8)
 
-		callback(CC.num_vertices, CC.dimension, CC.num_cliques, CC.max_clique, c/shots, len(T), T.depth(), shots, ii, L)
+			m1 = b1*m1 + (1-b1)*grad
+			v1 = b2*v1 + (1-b2)*(grad**2)
+			m2 = m1/(1-(b1**(ii+1)))
+			v2 = v1/(1-(b2**(ii+1)))
+
+			theta += alpha * m2 / (np.sqrt(v2)+eps)
+
+		theta -= np.max(theta) # project on negative orthant
+
+		callback(CC.num_vertices, CC.dimension, CC.num_cliques, CC.max_clique, c/shots, len(T), T.depth(), shots, ii, L, np.linalg.norm(mu-mu_hat))
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
@@ -465,6 +484,7 @@ def main(backend, user_messenger, **kwargs):
 	serialized_inputs["repetitions"] = kwargs.get("repetitions", 1)
 	serialized_inputs["iterations"] = kwargs.get("iterations", 100)
 	serialized_inputs["shots"] = kwargs.get("shots", 8192)
+	serialized_inputs["adam"] = kwargs.get("adam", False)
 	serialized_inputs["measurement_error_mitigation"] = kwargs.get("measurement_error_mitigation", 0)
 	serialized_inputs["optimization_level"] = kwargs.get("optimization_level", 3)
 	serialized_inputs["layout"] = kwargs.get("layout", None)
@@ -473,7 +493,7 @@ def main(backend, user_messenger, **kwargs):
 	
 	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": [], "theta": [], "counts": []}
 
-	history_train = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "iteration": [], "loss": []}
+	history_train = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "iteration": [], "loss": [], "l2err": []}
 
 	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta, counts):
 		# store information
@@ -495,7 +515,7 @@ def main(backend, user_messenger, **kwargs):
 		# and forward information to users callback
 		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta)
 
-	def store_history_and_forward_train(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss):
+	def store_history_and_forward_train(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss, l2err):
 		# store information
 		history_train["n"].append(n)
 		history_train["d"].append(d)
@@ -507,8 +527,9 @@ def main(backend, user_messenger, **kwargs):
 		history_train["shots"].append(shots)
 		history_train["iteration"].append(iteration)
 		history_train["loss"].append(loss)
+		history_train["l2err"].append(loss)
 		# and forward information to users callback
-		publisher.callback(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss)
+		publisher.callback(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss, l2err)
 
 
 	if not train_mode:
@@ -549,10 +570,15 @@ def main(backend, user_messenger, **kwargs):
 			serialized_inputs["layout"],
 			store_history_and_forward_train,
 			serialized_inputs["measurement_error_mitigation"],
-			serialized_inputs["optimization_level"]
+			serialized_inputs["optimization_level"],
+			serialized_inputs["adam"]
 		)
 
 		serialized_result = {
+			"negative avg. log-likelihood": history_train['loss'][-1],
+			"marginal l2 loss": history_train['l2err'][-1],
+			"SR_mean": np.mean(history_train['success_rate']),
+			"SR_sdev": np.std(history_train['success_rate']),
 			"all_results": history_train,
 			"inputs": serialized_inputs
 		}

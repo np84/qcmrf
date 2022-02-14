@@ -7,24 +7,36 @@
       "$schema": "https://json-schema.org/draft/2019-09/schema",
       "properties": {
         "graphs": {
-          "type": "list",
-          "description": "List of list of ints. Defines clique structures of multiple graphs."
+          "type": "List[List[List[int]]]",
+          "description": "Defines clique structures of multiple graphs."
         },
         "thetas": {
-          "type": "list",
-          "description": "MRF parameters. Default: None. If thetas and gammas are both None, MRf parameters will be sampled uniformly at random MRF in [-5,0)"
+          "type": "List[List[float]]",
+          "description": "MRF parameters for all graph structures defined in graphs. Default: None. If thetas and gammas are both None, MRf parameters will be sampled uniformly at random MRF in [-5,0)"
         },
         "gammas": {
-          "type": "list",
-          "description": "Circuit parameters. Default: None"
+          "type": "List[List[float]]",
+          "description": "Circuit parameters for all graph structures defined in graphs. Default: None"
         },
         "betas": {
-          "type": "list",
+          "type": "List[float]",
           "description": "Inverse temperatures. Default: None"
         },
         "repetitions": {
           "type": "int",
           "description": "Number of runs per graph. Default: 1"
+        },
+        "data": {
+          "type": "List[str]",
+          "description": "Data for training mode."
+        },
+        "mu": {
+          "type": "List[float]",
+          "description": "Empirical marginals for training mode."
+        },
+        "adam": {
+          "type": "Bool",
+          "description": "Use Adam optimizer for training mode. Default: True"
         },
         "shots": {
           "type": "int",
