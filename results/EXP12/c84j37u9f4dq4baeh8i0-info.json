@@ -1,0 +1,53 @@
+{
+  "id": "c84j37u9f4dq4baeh8i0",
+  "hub": "ibm-q-fraunhofer",
+  "group": "fhg-all",
+  "project": "ticket",
+  "backend": "ibm_auckland",
+  "status": "Completed",
+  "params": {
+    "layout": [
+      0,
+      1,
+      4,
+      7,
+      6,
+      2,
+      3,
+      5,
+      8,
+      11,
+      9
+    ],
+    "repetitions": 10,
+    "optimization_level": 3,
+    "measurement_error_mitigation": 2,
+    "shots": 100000,
+    "graphs": [
+      [
+        [
+          0,
+          1,
+          2
+        ]
+      ],
+      [
+        [
+          0,
+          1,
+          2
+        ],
+        [
+          2,
+          3,
+          4
+        ]
+      ]
+    ]
+  },
+  "program": {
+    "id": "qcmrf-P83WrvJ183"
+  },
+  "created": "2022-02-13T16:28:15.801542Z",
+  "runtime": "qiskit-program:93c4701"
+}

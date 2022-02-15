@@ -1,0 +1,36 @@
+{
+  "id": "c84i6hu9f4dq4baegqtg",
+  "hub": "ibm-q-fraunhofer",
+  "group": "fhg-all",
+  "project": "member",
+  "backend": "ibmq_qasm_simulator",
+  "status": "Completed",
+  "params": {
+    "shots": 100000,
+    "graphs": [
+      [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    ],
+    "layout": null,
+    "repetitions": 10,
+    "optimization_level": 3,
+    "measurement_error_mitigation": 0
+  },
+  "program": {
+    "id": "qcmrf-P83WrvJ183"
+  },
+  "created": "2022-02-13T15:27:03.4873Z",
+  "runtime": "qiskit-program:93c4701"
+}

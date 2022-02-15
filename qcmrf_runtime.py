@@ -527,7 +527,7 @@ def main(backend, user_messenger, **kwargs):
 		history_train["shots"].append(shots)
 		history_train["iteration"].append(iteration)
 		history_train["loss"].append(loss)
-		history_train["l2err"].append(loss)
+		history_train["l2err"].append(l2err)
 		# and forward information to users callback
 		publisher.callback(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss, l2err)
 
