@@ -3,31 +3,12 @@ import numpy as np
 import os.path
 import json
 import itertools
-from qiskit import IBMQ
-from qiskit.opflow import I, X, Z
-from scipy.linalg import expm
 
-#options = {
-#	'backend_name': 'ibmq_qasm_simulator'
-#}
-#
-#with open('account.json', 'r') as accountfile:
-#	account = json.load(accountfile)
-#
-#IBMQ.enable_account(account['token'], account['url'])
-#
-#account['project'] = 'member'
-#
-#provider = IBMQ.get_provider(
-#	hub=account['hub'],
-#	group=account['group'],
-#	project=account['project']
-#)
-#
-#with open('program_id.json', 'r') as idfile:
-#	res = json.load(idfile)
-#
-#
+import argparse
+
+parser = argparse.ArgumentParser(description='Evaluate QCMRF results.')
+parser.add_argument('--sim', dest='sim', action='store_true')
+args = parser.parse_args()
 
 def fidelity(P,Q):
 	"""Returns fidelity between probability mass functions, given by P and Q."""
@@ -43,35 +24,6 @@ def KL(P,Q):
 		if Q[i] > 0 and P[i] > 0:
 			kl += P[i] * np.log(P[i] / Q[i])
 	return kl
-
-
-def sufficient_statistic(C,y,n):
-	result = 1
-
-	plus  = [v for i,v in enumerate(C) if not y[i]] # 0
-	minus = [v for i,v in enumerate(C) if     y[i]] # 1)
-
-	for i in range(n):
-		f = I
-		if i in minus:
-			f = (I-Z)/2
-		elif i in plus:
-			f = (I+Z)/2
-
-		result = result^f
-
-	return result
-		
-def Hamiltonian(CL,theta,n):
-	H = 0
-	i = 0
-	for C in CL:
-		for y in list(itertools.product([0, 1], repeat=len(C))):
-			H += -theta[i] * sufficient_statistic(C,y,n)
-			i += 1
-	return H
-
-results = {}
 
 def graphListToTuple(G):
 	temp = []
@@ -101,7 +53,9 @@ class Result:
 		self.D = result['all_results']['depth'][idx*reps:(idx+1)*reps]  # Depths
 		self.W = result['all_results']['theta'][idx*reps:(idx+1)*reps]  # Weights
 		self.C = result['all_results']['counts'][idx*reps:(idx+1)*reps]  # Counts
-		
+
+results = {}
+
 pathlist = Path('.').glob('**/*info*.json')
 for path in pathlist:
 	# because path is object not string
@@ -132,55 +86,19 @@ for path in pathlist:
 			r = Result(info['backend'],result,i)
 			results[g].append(r)
 
-def extract_probs(R,n,a):
-	Y = list(itertools.product([0, 1], repeat=n))
-	P = np.zeros(2**n)
-	for i,y in enumerate(Y):
-		s = ''
-		for b in y:
-			s += str(b)
-
-		s0 = '0'*a + s
-
-		if s0 in R:
-			P[i] += R[s0]		
-	z = np.sum(P)
-	
-	return P/z, z
 
 for G in results.keys():
-	COUNTS = None
-	FIDS = {}
-	KLS = {}
-	SRS = {}
-	for i in range(10):
-		FIDS[i] = []
-		KLS[i] = []
-		SRS[i] = []
+
 	g = graphTupleToList(G)
 	print(g)
-	first = True
-	n = 0
-	cl = 0
-	w = None
-	S = 0
+	
+	FIDS = {}
+	KLS  = {}
+	SRS  = {}
+
 	for jj,r in enumerate(results[G]):
-		if r.backend != 'ibmq_qasm_simulator':
-			S += r.shots
-			# aggregate counts
-			if first:
-				COUNTS = r.C
-				n = r.n
-				cl = r.num_cliques
-				w = r.W
-				#print(n,cl,w)
-			else:
-				for j,CC in enumerate(r.C): 
-					for c in CC.keys():
-						if COUNTS[j].get(c) is None:
-							COUNTS[j][c] = CC[c]
-						else:
-							COUNTS[j][c] += CC[c]
+		if (r.backend == 'ibmq_qasm_simulator' and args.sim) or (r.backend != 'ibmq_qasm_simulator' and not args.sim):
+
 			for j,f in enumerate(r.F):
 				FIDS[j].append(f) 
 			for j,k in enumerate(r.KL):
@@ -188,39 +106,7 @@ for G in results.keys():
 			for j,s in enumerate(r.SR):
 				SRS[j].append(s) 
 			first = False
-			#for j,CC in enumerate(r.C): 
-			#	P,_ = extract_probs(CC,n,cl)
-			#	print('P'+str(j),P)
-			#runtime_inputs = {
-			#	"graphs": [graphTupleToList(G)]*10,
-			#	"repetitions": 1,
-			#	"shots": 100000,
-			#	"thetas": r.W,
-			#	"measurement_error_mitigation": 0,
-			#	"optimization_level": 3
-			#}
-			#job = provider.runtime.run(
-			#	program_id=res['program_id'],
-			#	options=options,
-			#	inputs=runtime_inputs
-			#)
-			#print(job.job_id(),job.status())
-			#break
-	FF = []
-	KK = []
-	SS = []
-	for i,c in enumerate(COUNTS):
-		P,zz = extract_probs(c,n,cl)
-		
-		H = Hamiltonian(g,w[i],n)
-		RHO = expm(-H.to_matrix())
-		z = np.trace(RHO)
-		Q = np.diag(RHO)/z
-		
-		SS.append(zz/S)
-		FF.append(fidelity(P,Q))
-		KK.append(KL(P,Q))
-	#print(np.max(FF),np.min(KK),np.mean(SS))
+
 	FF = []
 	KK = []
 	SS = []
@@ -228,6 +114,7 @@ for G in results.keys():
 		FF.append(np.max(FIDS[i])) # best over all backends for each run
 		KK.append(np.min(KLS[i])) # best over all backends for each run
 		SS.append(np.max(SRS[i])) # best over all backends for each run
-	print(np.max(FF),np.median(FF),np.min(FF))
-	print(np.max(KK),np.median(KK),np.min(KK))
-	print(np.max(SS),np.median(SS),np.min(SS))
+
+	print("%.3f" % (np.median(FF)))
+	print("%.3f" % (np.median(KK)))
+	print("%.3f" % (np.median(SS)))
