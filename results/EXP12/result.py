@@ -10,21 +10,6 @@ parser = argparse.ArgumentParser(description='Evaluate QCMRF results.')
 parser.add_argument('--sim', dest='sim', action='store_true')
 args = parser.parse_args()
 
-def fidelity(P,Q):
-	"""Returns fidelity between probability mass functions, given by P and Q."""
-	F = 0
-	for i in range(len(P)):
-		F += np.sqrt(P[i] * Q[i])
-	return F**2
-
-def KL(P,Q):
-	"""Returns Kullback-Leibler divergence between probability mass functions, given by P and Q."""
-	kl = 0
-	for i in range(len(P)):
-		if Q[i] > 0 and P[i] > 0:
-			kl += P[i] * np.log(P[i] / Q[i])
-	return kl
-
 def graphListToTuple(G):
 	temp = []
 	for C in G:
@@ -95,11 +80,18 @@ for G in results.keys():
 	FIDS = {}
 	KLS  = {}
 	SRS  = {}
+	
+	l = 10
+	
+	for i in range(l):
+		FIDS[i] = []
+		KLS[i]  = []
+		SRS[i]  = []
 
 	for jj,r in enumerate(results[G]):
 		if (r.backend == 'ibmq_qasm_simulator' and args.sim) or (r.backend != 'ibmq_qasm_simulator' and not args.sim):
-
 			for j,f in enumerate(r.F):
+				#print(jj,j,r.backend,r.mit)
 				FIDS[j].append(f) 
 			for j,k in enumerate(r.KL):
 				KLS[j].append(k) 
@@ -107,13 +99,18 @@ for G in results.keys():
 				SRS[j].append(s) 
 			first = False
 
+	if len(FIDS[0]) == 0:
+		break
+
 	FF = []
 	KK = []
 	SS = []
-	for i in range(10):
-		FF.append(np.max(FIDS[i])) # best over all backends for each run
-		KK.append(np.min(KLS[i])) # best over all backends for each run
-		SS.append(np.max(SRS[i])) # best over all backends for each run
+	
+	for i in range(l):
+		if len(FIDS[i]) > 0:
+			FF.append(np.max(FIDS[i])) # best over all backends for each run
+			KK.append(np.min(KLS[i])) # best over all backends for each run
+			SS.append(np.max(SRS[i])) # best over all backends for each run
 
 	print("%.3f" % (np.median(FF)))
 	print("%.3f" % (np.median(KK)))
