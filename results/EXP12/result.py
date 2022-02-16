@@ -226,7 +226,7 @@ for G in results.keys():
 	SS = []
 	for i in range(10):
 		FF.append(np.max(FIDS[i])) # best over all backends for each run
-		KK.append(np.max(KLS[i])) # best over all backends for each run
+		KK.append(np.min(KLS[i])) # best over all backends for each run
 		SS.append(np.max(SRS[i])) # best over all backends for each run
 	print(np.max(FF),np.median(FF),np.min(FF))
 	print(np.max(KK),np.median(KK),np.min(KK))

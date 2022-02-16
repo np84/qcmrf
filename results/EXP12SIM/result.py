@@ -165,8 +165,7 @@ for G in results.keys():
 	w = None
 	S = 0
 	for jj,r in enumerate(results[G]):
-		if True:
-#		if r.backend != 'ibmq_qasm_simulator':
+		if r.backend == 'ibmq_qasm_simulator':
 			S += r.shots
 			# aggregate counts
 			if first:
@@ -222,13 +221,13 @@ for G in results.keys():
 		FF.append(fidelity(P,Q))
 		KK.append(KL(P,Q))
 	#print(np.max(FF),np.min(KK),np.mean(SS))
-	FF = []
-	KK = []
-	SS = []
-	for i in range(10):
-		FF.append(np.median(FIDS[0])) # best over all backends for each run
-		KK.append(np.median(KLS[0])) # best over all backends for each run
-		SS.append(np.median(SRS[0])) # best over all backends for each run
+	FF = FIDS[0]
+	KK = KLS[0]
+	SS = SRS[0]
+	#for i in range(10):
+	#	FF.append(np.median(FIDS[0])) # best over all backends for each run
+	#	KK.append(np.median(KLS[0])) # best over all backends for each run
+	#	SS.append(np.median(SRS[0])) # best over all backends for each run
 	print(np.max(FF),np.median(FF),np.min(FF))
 	print(np.max(KK),np.median(KK),np.min(KK))
 	print(np.max(SS),np.median(SS),np.min(SS))
