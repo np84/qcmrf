@@ -9,8 +9,8 @@ def test():
 	backend = Aer.get_backend('qasm_simulator')
 	inputs = {
 		"graphs": [[[0,1],[1,2]]],
-		"repetitions": 3,
-		"shots": 10000
+		"repetitions": 10,
+		"shots": 64000
 	}
 	user_messenger = UserMessenger()
 	serialized_inputs = json.dumps(inputs, cls=RuntimeEncoder)

@@ -11,9 +11,9 @@ def test():
 		"graphs": [[[0,1],[1,2]]],
 		"mu": [0.3,0,0,0.7,0.1,0.2,0.1,0.6],
 		"data": ['000','001','001','110','111','111','111','111','111','111'],
-		"iterations": 10,
+		"iterations": 100,
 		"train": True,
-		"adam": False,
+		"adam": True,
 		"shots": 64000
 	}
 	user_messenger = UserMessenger()

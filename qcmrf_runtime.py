@@ -118,11 +118,9 @@ class QCMRF(QuantumCircuit):
 				"The QCMRF parameter vector has an incorrect dimension. Expected: " + str(self._dim)
 			)
 
-		self._mrfqubits = self._n + self._num_cliques + 1
-		if self._qubit_hack:
-			self._mrfqubits -= 1
+		embedding_aux = 1 if not self._qubit_hack else 0
 
-		super().__init__(self._mrfqubits, self._mrfqubits if self._qubit_hack else self._mrfqubits - 1, name=name)
+		super().__init__(self._n + self._num_cliques + embedding_aux, self._n + self._num_cliques, name=name)
 		
 		self._build()
 
@@ -343,7 +341,7 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 				
 				if len(layout) < nvars:
 					raise ValueError(
-						"Layout has not enough qubits. Expected: " + str(C.num_vertices+C.num_cliques) + " (at least)"
+						"Layout has not enough qubits. Expected: " + str(nvars) + " (at least)"
 					)
 				LAY = layout[:nvars]
 			else:
@@ -400,7 +398,7 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 			nvars = CC.num_vertices+CC.num_cliques			
 			if len(layout) < nvars:
 				raise ValueError(
-					"Layout has not enough qubits. Expected: " + str(CC.num_vertices+CC.num_cliques) + " (at least)"
+					"Layout has not enough qubits. Expected: " + str(nvars) + " (at least)"
 				)
 			LAY = layout[:nvars]
 		else:
