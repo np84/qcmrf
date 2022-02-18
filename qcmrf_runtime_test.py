@@ -10,7 +10,8 @@ def test():
 	inputs = {
 		"graphs": [[[0,1],[1,2]]],
 		"repetitions": 10,
-		"shots": 64000
+		"shots": 64000,
+		"optimization_level": 3
 	}
 	user_messenger = UserMessenger()
 	serialized_inputs = json.dumps(inputs, cls=RuntimeEncoder)
