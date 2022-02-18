@@ -101,6 +101,10 @@ class Result:
 
 results = {}
 
+################################################################################
+
+# load json files into memory
+
 pathlist = Path('.').glob('./*info*.json')
 for path in pathlist:
 	# because path is object not string
@@ -144,16 +148,19 @@ IDX = {
 ((0, 1, 2), (2, 3, 4), (4, 5, 6)):9
 }
 
-del results[((0, 1, 2), (2, 3, 4), (4, 5, 6))]
-#del results[((0, 1, 2), (2, 3, 4))]
+del results[((0, 1, 2), (2, 3, 4), (4, 5, 6))] # only one simulation run this graph
+del IDX[((0, 1, 2), (2, 3, 4), (4, 5, 6))]
 
-MM = 9
-print("MM =",MM)
-
-RES = [[0]*MM,[0]*MM,[0]*MM]
+RES = [[0]*len(IDX)] * 3 # reserve mem for results
 			
-U = {}
-W = {}
+SUM_CHECK = {} # store weight sum as a "hash" to ensure that models use same weights
+W = {} # store weights
+
+################################################################################
+
+# extract 10 weight vectors for each graph from the json dicts
+# this is used later when we compute the corresponding results
+# with Gibbs-sampling and PAM
 
 for idx,G in enumerate(results.keys()):
 
@@ -168,12 +175,16 @@ for idx,G in enumerate(results.keys()):
 		if (r.backend == 'ibmq_montreal'): # any backend is ok. 
 			for j,w in enumerate(r.W):
 				WS[j].append(w)
-				if U.get(idx) is None:
-					U[idx] = {}
+				if SUM_CHECK.get(idx) is None:
+					SUM_CHECK[idx] = {}
 					W[idx] = {}
-				if U[idx].get(j) is None:
-					U[idx][j] = np.sum(w)
+				if SUM_CHECK[idx].get(j) is None:
+					SUM_CHECK[idx][j] = np.sum(w)
 					W[idx][j] = w
+
+################################################################################
+
+# extract qcmrf results from json dicts
 
 if True:
 
@@ -195,13 +206,13 @@ if True:
 		for jj,r in enumerate(results[G]):
 			if (r.backend == 'ibmq_qasm_simulator' and args.method != 'qcmrf') or (r.backend != 'ibmq_qasm_simulator' and args.method == 'qcmrf'):
 				for j,f in enumerate(r.F):
-					if U[idx][j] == np.sum(r.W[j]):
+					if SUM_CHECK[idx][j] == np.sum(r.W[j]):
 						FIDS[j].append(f)
 				for j,k in enumerate(r.KL):
-					if U[idx][j] == np.sum(r.W[j]):
+					if SUM_CHECK[idx][j] == np.sum(r.W[j]):
 						KLS[j].append(k) 
 				for j,s in enumerate(r.SR):
-					if U[idx][j] == np.sum(r.W[j]):
+					if SUM_CHECK[idx][j] == np.sum(r.W[j]):
 						SRS[j].append(s)
 
 		if len(FIDS[0]) == 0:
@@ -234,6 +245,7 @@ if True:
 			RES[1][IDX[G]] = (np.median(KK))
 			RES[2][IDX[G]] = int((np.median(SS))*N)
 			
+################################################################################
 
 # the following method computes unnomalized log-probs for all 2**n states
 def compute_all_scores(g,w,n):
@@ -257,10 +269,12 @@ def compute_all_scores(g,w,n):
 		SCORES[x] = score
 	
 	return SCORES
+	
+################################################################################
 
 if args.method == 'gibbs' or args.method == 'pam':
-	RES[0] = [0]*MM
-	RES[1] = [0]*MM
+	RES[0] = [0]*len(IDX) # cleanup results
+	RES[1] = [0]*len(IDX) # cleanup results
 	for idx,G in enumerate(results.keys()):
 
 		N = 100_000 # Number of raw samples
@@ -279,6 +293,8 @@ if args.method == 'gibbs' or args.method == 'pam':
 			Q = np.exp(SCORES)
 			Q /= np.sum(Q) # groundtruth probs
 			counts = {}
+			
+################################################################################
 				
 			if args.method == 'pam':
 			
@@ -286,7 +302,7 @@ if args.method == 'gibbs' or args.method == 'pam':
 				
 					local = np.copy(w)
 				
-					S = 3
+					S = 3 # hyper parameter
 					b = 1
 
 					for ii in range(len(w)):
@@ -306,10 +322,12 @@ if args.method == 'gibbs' or args.method == 'pam':
 						counts[s] = 1
 					else:
 						counts[s] += 1
+						
+################################################################################
 
 			elif args.method == 'gibbs':
 				for x in range(int(N/(100*n))):
-					X = np.random.binomial(n=1,p=0.5,size=n)
+					X = np.random.binomial(n=1,p=0.5,size=n) # restart chain, random init
 					for j in range(100): # effetively drop 100*n samples in the loop
 						for v in range(n): # resample each variable n times (counts as bunred gibbs sample)
 							xs = np2str(X)
@@ -330,6 +348,8 @@ if args.method == 'gibbs' or args.method == 'pam':
 						counts[s] = 1
 					else:
 						counts[s] += 1
+						
+################################################################################
 
 			P,_ = extract_probs(counts,n)
 				
