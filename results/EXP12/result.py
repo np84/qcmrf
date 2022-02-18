@@ -3,7 +3,6 @@ import numpy as np
 import os.path
 import json
 import itertools
-import pxpy as px
 
 N = 100000
 
@@ -166,7 +165,7 @@ for idx,G in enumerate(results.keys()):
 		WS[i] = []
 			
 	for jj,r in enumerate(results[G]):
-		if (r.backend == 'ibmq_montreal'):
+		if (r.backend == 'ibmq_montreal'): # any backend is ok. 
 			for j,w in enumerate(r.W):
 				WS[j].append(w)
 				if U.get(idx) is None:
@@ -175,9 +174,7 @@ for idx,G in enumerate(results.keys()):
 				if U[idx].get(j) is None:
 					U[idx][j] = np.sum(w)
 					W[idx][j] = w
-					#print(g,j,w)
 
-#if args.method.startswith('qcmrf'):
 if True:
 
 	for idx,G in enumerate(results.keys()):
@@ -237,106 +234,72 @@ if True:
 			RES[1][IDX[G]] = (np.median(KK))
 			RES[2][IDX[G]] = int((np.median(SS))*N)
 			
+
+# the following method computes unnomalized log-probs for all 2**n states
+def compute_all_scores(g,w,n):
+	SCORES = np.zeros(2**n)
+				
+	for x in range(2**n):
+		X = int2np(x,n)
+					
+		score = 0
+		offset = 0
+		for C in g:
+			s = ''
+			for v in C:
+				if X[v] < 1:
+					s += '1'
+				else:
+					s += '0'
+				y = int(s,2)
+			score += w[offset+y]
+			offset += 2**len(C)
+		SCORES[x] = score
+	
+	return SCORES
+
 if args.method == 'gibbs' or args.method == 'pam':
 	RES[0] = [0]*MM
 	RES[1] = [0]*MM
 	for idx,G in enumerate(results.keys()):
-		N = 100_000 #int(100000 * RES[2][IDX[G]])
-		if args.method == 'gibbs':
-			N = int(N/100) # 'burned' samples are virtually removed. effectively burn 100 per one Gibbs-sampler
+
+		N = 100_000 # Number of raw samples
+
 		g = graphTupleToList(G)
 		print('G =',g,'N =',N)
 		FF = []
 		KK = []
+		
 		for jdx in W[idx]:
-			#print(G,jdx)
-			#print('.', end='', flush=True)
-			w = W[idx][jdx]
-			if IDX[G] == 0: # same for Gibbs and pam
-				p = np.exp(w[0])/(np.exp(w[0])+np.exp(w[1]))
-				q = np.exp(w[1])/(np.exp(w[0])+np.exp(w[1]))
-				S = np.random.binomial(n=1,p=q,size=N)
-				C1,C2 = np.unique(S,return_counts=True)
+		
+			n = np.max(g)+1 # number of variables
+			w = W[idx][jdx] # model parameters
 				
-				try:
-					a = C2[0]/N
-				except:
-					a = 0
-				try:
-					b = C2[1]/N
-				except:
-					b = 0
-				P = [a,b]
-				Q = [p,q]
-				f = np.real(fidelity(P,Q))
-				k = np.real(KL(Q,P))
-
-				FF.append(f)
-				KK.append(k)
+			SCORES = compute_all_scores(g,w,n) # unnomalized log-probs
+			Q = np.exp(SCORES)
+			Q /= np.sum(Q) # groundtruth probs
+			counts = {}
 				
-			elif IDX[G] < 6:
-				E = np.array(g)
-				theta = np.array(w)
-				H = px.create_graph(E)
-				Y = np.array([2] * H.nodes)
-				model = px.create_model(theta,H,2)
-				_, A = model.infer()
-				
-				if args.method == 'gibbs':
-					S = model.sample(num_samples=int(N/H.nodes), sampler = px.SamplerType.gibbs, burn=100) 
-				else:
-					S = model.sample(num_samples=N, sampler = px.SamplerType.perturb_and_map)
-
-				counts = {}
-				for x in S:
-					s = np2str(x)
-					if counts.get(s) is None:
-						counts[s] = 1
-					else:
-						counts[s] += 1
-						
-				P,_ = extract_probs(counts,H.nodes)
-				Q = np.zeros(2**H.nodes)
-				for x in range(2**H.nodes):
-					X = int2np(x,H.nodes)
-					s = model.score(X)
-					Q[x] = np.exp(s-A)
-					
-				f = np.real(fidelity(P,Q))
-				k = np.real(KL(Q,P))
-					
-				FF.append(f)
-				KK.append(k)
-				
-			elif IDX[G] < 9 and args.method == 'pam':
-				n = np.max(g)+1
-				
-				SCORES = np.zeros(2**n)
-				
-				for x in range(2**n):
-					X = int2np(x,n)
-					
-					score = 0
-					offset = 0
-					for C in g:
-						s = ''
-						for v in C:
-							if X[v] < 1:
-								s += '1'
-							else:
-								s += '0'
-						y = int(s,2)
-						score += w[offset+y]
-						offset += 2**len(C)
-					SCORES[x] = score
-					
-				Q = np.exp(SCORES)
-				Q /= np.sum(Q)
-				
-				counts = {}
+			if args.method == 'pam':
+			
 				for x in range(N):
-					PER = np.random.gumbel(size=2**n)
-					P_SCORES = SCORES + PER
+				
+					local = np.copy(w)
+				
+					S = 3
+					b = 1
+
+					for ii in range(len(w)):
+						noise = 0;
+						for s in range(S):
+							scale = len(G) / (1.0+s);
+							noise += scale * np.random.gamma(1.0/len(G),1.0) - np.log(S*1.0)
+
+						noise *= (b/len(G));
+						local[ii] += noise;
+						
+					P_SCORES = compute_all_scores(g,local,n)
+
 					x_star = np.argmax(P_SCORES)
 					s = int2str(x_star,n)
 					if counts.get(s) is None:
@@ -344,73 +307,11 @@ if args.method == 'gibbs' or args.method == 'pam':
 					else:
 						counts[s] += 1
 
-				P,_ = extract_probs(counts,n)
-
-				
-				f = np.real(fidelity(P,Q))
-				k = np.real(KL(Q,P))
-					
-				FF.append(f)
-				KK.append(k)
-					
-				
-			elif (IDX[G] == 6 or IDX[G] == 8) and args.method == 'gibbs':
-				n = np.max(g)+1
-				
-				Q = np.exp(w)
-				Q /= np.sum(Q)
-				S = np.random.multinomial(1, Q, size=int(N/n))
-				#print(S)
-				
-				counts = {}
-				for x in S:
-					s = nphot2str(x, n)
-					if counts.get(s) is None:
-						counts[s] = 1
-					else:
-						counts[s] += 1
-						
-				P,_ = extract_probs(counts, n)
-
-				f = np.real(fidelity(P,Q))
-				k = np.real(KL(Q,P))
-	
-				FF.append(f)
-				KK.append(k)
-
-			elif IDX[G] == 7 and args.method == 'gibbs':
-				n = np.max(g)+1
-				
-				SCORES = np.zeros(2**n)
-				
-				for x in range(2**n):
-					X = int2np(x,n)
-					
-					score = 0
-					offset = 0
-					for C in g:
-						s = ''
-						for v in C:
-							if X[v] < 1:
-								s += '1'
-							else:
-								s += '0'
-						y = int(s,2)
-						score += w[offset+y]
-						offset += 2**len(C)
-					SCORES[x] = score
-					
-				Q = np.exp(SCORES)
-				Q /= np.sum(Q)
-				
-				counts = {}
-				for x in range(int(N/n)):
+			elif args.method == 'gibbs':
+				for x in range(int(N/(100*n))):
 					X = np.random.binomial(n=1,p=0.5,size=n)
-					for j in range(100*n): # effetively drop 100*n Gibbs-samples in the loop
-						for v in range(n):
-							# resample v
-							P0 = 0
-							PC = 0
+					for j in range(100): # effetively drop 100*n samples in the loop
+						for v in range(n): # resample each variable n times (counts as bunred gibbs sample)
 							xs = np2str(X)
 							p = Q[int(xs,2)] # P(V) = P(v, V\{v})
 							Xtemp = np.copy(X)							
@@ -421,26 +322,23 @@ if args.method == 'gibbs' or args.method == 'pam':
 							q = p + Q[int(np2str(Xtemp),2)] # P(V\{v})
 							p = p/q # P(v | V\{v})
 							if X[v] < 1: # v=0
-								p = 1-p # p = P(v=1 | V\{v})
-							#print('P(',v,'= 1 | V\{',v,'}) =',p)
+								p = 1-p # p = P(v=1 | V\{v}) = P(v=1 | N(v)) due to Markov prop.
 							v_new = np.random.binomial(n=1,p=p,size=1)
 							X[v] = v_new[0]
 					s = np2str(X)
-					#print(s)
 					if counts.get(s) is None:
 						counts[s] = 1
 					else:
 						counts[s] += 1
-				#print(counts)
-						
-				P,_ = extract_probs(counts, n)
 
-				f = np.real(fidelity(P,Q))
-				k = np.real(KL(Q,P))
-	
-				FF.append(f)
-				KK.append(k)
-
+			P,_ = extract_probs(counts,n)
+				
+			f = np.real(fidelity(P,Q))
+			k = np.real(KL(Q,P))
+					
+			FF.append(f)
+			KK.append(k)
+				
 		if len(FF)>0:
 			RES[0][IDX[G]] = (np.median(FF))
 			RES[1][IDX[G]] = (np.median(KK))
