@@ -151,7 +151,7 @@ IDX = {
 del results[((0, 1, 2), (2, 3, 4), (4, 5, 6))] # only one simulation run this graph
 del IDX[((0, 1, 2), (2, 3, 4), (4, 5, 6))]
 
-RES = [[0]*len(IDX)] * 3 # reserve mem for results
+RES = np.array([[0.0]*len(IDX)]* 3).tolist() # reserve mem for results
 			
 SUM_CHECK = {} # store weight sum as a "hash" to ensure that models use same weights
 W = {} # store weights
@@ -230,9 +230,9 @@ if True:
 					KK.append(KLS[i][jdx]) # best over all backends for each run
 					SS.append(SRS[i][jdx]) # best over all backends for each run
 
-			RES[0][IDX[G]] = (np.median(FF))
-			RES[1][IDX[G]] = (np.median(KK))
-			RES[2][IDX[G]] = int((np.median(SS))*N)
+			v1 = (np.median(FF))
+			v2 = (np.median(KK))
+			v3 = int((np.median(SS))*N)
 			
 		else:
 			for i in range(l):
@@ -241,10 +241,17 @@ if True:
 					KK += KLS[i]
 					SS += SRS[i]
 
-			RES[0][IDX[G]] = (np.median(FF))
-			RES[1][IDX[G]] = (np.median(KK))
-			RES[2][IDX[G]] = int((np.median(SS))*N)
+			v1 = (np.median(FF))
+			v2 = (np.median(KK))
+			v3 = int((np.median(SS))*N)
 			
+		RES[0][IDX[G]] = v1
+		RES[1][IDX[G]] = v2
+		RES[2][IDX[G]] = v3
+		#print(RES[0][IDX[G]],RES[1][IDX[G]],RES[2][IDX[G]])
+
+#print(RES)
+
 ################################################################################
 
 # the following method computes unnomalized log-probs for all 2**n states
@@ -338,9 +345,9 @@ if args.method == 'gibbs' or args.method == 'pam':
 							else:
 								Xtemp[v] = 0
 							q = p + Q[int(np2str(Xtemp),2)] # P(V\{v})
-							p = p/q # P(v | V\{v})
+							p = p/q # P(v | V\{v}) = P(v | N(v)) due to Markov prop.
 							if X[v] < 1: # v=0
-								p = 1-p # p = P(v=1 | V\{v}) = P(v=1 | N(v)) due to Markov prop.
+								p = 1-p # p = P(v=1 | V\{v})
 							v_new = np.random.binomial(n=1,p=p,size=1)
 							X[v] = v_new[0]
 					s = np2str(X)
@@ -365,7 +372,7 @@ if args.method == 'gibbs' or args.method == 'pam':
 
 for i,row in enumerate(RES):
 	if i == 0:
-		prefix = '$F$&'
+		prefix = '&$F$&'
 	if i == 1:
 		prefix = '&KL&'
 	if i == 2:
@@ -374,8 +381,6 @@ for i,row in enumerate(RES):
 			break
 	print(prefix,end='',flush=True)
 	for val in row:
-		#if val < 0:
-		#	val *= -1
 		if i < 2:
 			if val < 0:
 				print('---&',end='',flush=True)
