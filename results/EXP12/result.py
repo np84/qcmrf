@@ -162,14 +162,20 @@ W = {} # store weights
 # this is used later when we compute the corresponding results
 # with Gibbs-sampling and PAM
 
+MRFs = {'graphs':[],'thetas':[]}
+
 for idx,G in enumerate(results.keys()):
 
 	g = graphTupleToList(G)
+	
+	MRFs['graphs'].append(g)
 		
 	WS = {}
 	l = 10
 	for i in range(l):
 		WS[i] = []
+		
+	TH = [None] * 10
 			
 	for jj,r in enumerate(results[G]):
 		if (r.backend == 'ibmq_montreal'): # any backend is ok. 
@@ -181,6 +187,12 @@ for idx,G in enumerate(results.keys()):
 				if SUM_CHECK[idx].get(j) is None:
 					SUM_CHECK[idx][j] = np.sum(w)
 					W[idx][j] = w
+					TH[j] = w
+					
+	MRFs['thetas'].append(TH)
+
+with open('models.json', 'w', encoding='utf-8') as f:
+    json.dump(MRFs, f, ensure_ascii=False, indent=4)
 
 ################################################################################
 
