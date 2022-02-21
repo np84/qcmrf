@@ -277,10 +277,10 @@ class QCMRF(QuantumCircuit):
 				M = factor.to_matrix()[:2**(self._n),:2**(self._n)]
 				factor = MatrixOp(M)
 
-			u = self._conjugateBlocks(factor).to_circuit()
+			u = self._conjugateBlocks(factor).to_circuit().to_instruction(label='U^C('+str(ii)+')')
 
 			# intermediate transpilation
-			u = transpile(u, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'], optimization_level=3).to_instruction(label='U^C('+str(ii)+')')
+			#u = transpile(u, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'], optimization_level=3).to_instruction(label='U^C('+str(ii)+')')
 
 			# RUS for real part extraction
 			self.h(num_main_qubits + ii)
@@ -324,8 +324,15 @@ def extract_probs(R,n,a):
 	
 	return P/z, z
 
-def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callback=None,measurement_error_mitigation=0,optimization_level=3):
+def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callback=None,error_mitigation_cls=None,optimization_level=3):
 	np.random.seed(1984)
+
+	fitter = None
+	if error_mitigation_cls is not None:
+		fitter = build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_transpiler=42,qubits=layout)
+
+	CIRCUITS = []
+	
 	for i in range(len(graphs)):
 		for j in range(repetitions):
 
@@ -333,53 +340,35 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 			theta = thetas[i] if (thetas is not None) else None
 			gamma = gammas[i] if (gammas is not None) else None
 
-			s2 = time.time()
 			C = QCMRF(graphs[i], theta=theta, gamma=gamma, beta=beta)
 
-			if layout is not None:
-				nvars = C.num_vertices+C.num_cliques
+			CIRCUITS.append(C)
+
+	T = transpile(CIRCUITS, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=layout[:C.num_vertices+C.num_cliques])
+
+	if fitter is None:
+		result = backend.run(T, shots=shots).result()
 				
-				if len(layout) < nvars:
-					raise ValueError(
-						"Layout has not enough qubits. Expected: " + str(nvars) + " (at least)"
-					)
-				LAY = layout[:nvars]
-			else:
-				LAY = None
-			s2 = time.time() - s2
-
-			s1 = time.time()
-			T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
-			s1 = time.time() - s1		
+	else:
+		result = run_mitigated(T, shots=shots, backend=backend, optimization_level=optimization_level, seed_transpiler=42, meas_error_mitigation_fitter=fitter, layout=layout[:C.num_vertices+C.num_cliques])
 			
-			s3 = time.time()
-			if not measurement_error_mitigation:
-				job = backend.run(T, shots=shots)
-				result = job.result()
-				
-			else:
-				cls = None
-				if measurement_error_mitigation == 1:
-					cls = CompleteMeasFitter
+	for ii,C in enumerate(CIRCUITS):
 
-				elif measurement_error_mitigation == 2:
-					cls = TensoredMeasFitter
-					
-				result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=cls, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
-
-			P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
-			s3 = time.time() - s3
+		P, c = extract_probs(result.get_counts()[ii], C.num_vertices, C.num_cliques)
 			
-			H = C.Hamiltonian()
-			RHO = expm(-beta*H.to_matrix())
-			z = np.trace(RHO)
-			Q = np.diag(RHO)/z
+		H = C.Hamiltonian()
+		RHO = expm(-beta*H.to_matrix())
+		z = np.trace(RHO)
+		Q = np.diag(RHO)/z
 			
-			callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T), T.depth(), shots, s1, s2, s3, C.theta, result.get_counts())
+		callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T[ii]), T[ii].depth(), shots, C.theta, result.get_counts()[ii])
 
-
-def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measurement_error_mitigation=0,optimization_level=3,adam=True):
+def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,error_mitigation_cls=None,optimization_level=3,adam=True):
 	np.random.seed(1984)
+	
+	fitter = None
+	if error_mitigation_cls is not None:
+		fitter = build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_transpiler=42,qubits=layout)
 
 	dim = len(mu)
 	theta = np.zeros(dim)
@@ -392,34 +381,17 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 
 	for ii in range(iterations):
 
-		CC = QCMRF(graph, theta=theta)
+		C = QCMRF(graph, theta=theta)
 
-		if layout is not None:
-			nvars = CC.num_vertices+CC.num_cliques			
-			if len(layout) < nvars:
-				raise ValueError(
-					"Layout has not enough qubits. Expected: " + str(nvars) + " (at least)"
-				)
-			LAY = layout[:nvars]
+		T = transpile(C, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=layout)
+
+		if fitter is None:
+			result = backend.run(T, shots=shots).result()
+					
 		else:
-			LAY = None
+			result = run_mitigated([T], shots=shots, backend=backend, optimization_level=optimization_level, seed_transpiler=42, meas_error_mitigation_fitter=fitter, layout=layout[:C.num_vertices+C.num_cliques])
 
-		T = transpile(CC, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
-
-		if not measurement_error_mitigation:
-			job = backend.run(T, shots=shots)
-			result = job.result()
-
-		else:
-			cls = None
-			if measurement_error_mitigation == 1:
-				cls = CompleteMeasFitter
-			elif measurement_error_mitigation == 2:
-				cls = TensoredMeasFitter
-
-			result = run_mitigated(T, shots=shots, backend=backend, error_mitigation_cls=cls, optimization_level=optimization_level, seed_transpiler=42, initial_layout=LAY)
-
-		P, c = extract_probs(result.get_counts(), CC.num_vertices, CC.num_cliques)
+		P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
 
 		L = 0
 		for x in data:
@@ -427,17 +399,17 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 		L *= 1/len(data)
 
 		mu_hat = np.zeros(dim)
-		Y = list(itertools.product([0, 1], repeat=CC.num_vertices))
+		Y = list(itertools.product([0, 1], repeat=C.num_vertices))
 		for i,x in enumerate(Y):
 			temp = np.zeros(dim)
 			off = 0
-			for C in graph:
+			for CL in graph:
 				s = ''
-				for v in C:
+				for v in CL:
 					s += str(x[v])
 				yn = int(s, 2)
 				temp[off+yn] = 1
-				off += 2**len(C)
+				off += 2**len(CL)
 			mu_hat += P[i] * temp
 
 		grad = np.array(mu) - mu_hat
@@ -459,7 +431,7 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,measu
 
 		theta -= np.max(theta) # project on negative orthant
 
-		callback(CC.num_vertices, CC.dimension, CC.num_cliques, CC.max_clique, c/shots, len(T), T.depth(), shots, ii, L, np.linalg.norm(mu-mu_hat))
+		callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, c/shots, len(T), T.depth(), shots, ii, L, np.linalg.norm(mu-mu_hat))
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
@@ -484,6 +456,13 @@ def main(backend, user_messenger, **kwargs):
 	serialized_inputs["shots"] = kwargs.get("shots", 8192)
 	serialized_inputs["adam"] = kwargs.get("adam", False)
 	serialized_inputs["measurement_error_mitigation"] = kwargs.get("measurement_error_mitigation", 0)
+	
+	fcls = None
+	if serialized_inputs["measurement_error_mitigation"] == 1:
+		fcls = CompleteMeasFitter
+	elif serialized_inputs["measurement_error_mitigation"] == 2:
+		fcls = TensoredMeasFitter
+
 	serialized_inputs["optimization_level"] = kwargs.get("optimization_level", 3)
 	serialized_inputs["layout"] = kwargs.get("layout", None)
 
@@ -493,7 +472,7 @@ def main(backend, user_messenger, **kwargs):
 
 	history_train = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "iteration": [], "loss": [], "l2err": []}
 
-	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta, counts):
+	def store_history_and_forward(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, theta, counts):
 		# store information
 		history["n"].append(n)
 		history["d"].append(d)
@@ -505,13 +484,10 @@ def main(backend, user_messenger, **kwargs):
 		history["gates"].append(gates)
 		history["depth"].append(depth)
 		history["shots"].append(shots)
-		history["transpile_time"].append(transpile_time)
-		history["prepare_time"].append(prepare_time)
-		history["exec_time"].append(exec_time)
 		history["theta"].append(theta)
 		history["counts"].append(counts)
 		# and forward information to users callback
-		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, transpile_time, prepare_time, exec_time, theta)
+		publisher.callback(n, d, num_cliques, max_clique, fidelity, KL, success_rate, gates, depth, shots, theta)
 
 	def store_history_and_forward_train(n, d, num_cliques, max_clique, success_rate, gates, depth, shots, iteration, loss, l2err):
 		# store information
@@ -541,7 +517,7 @@ def main(backend, user_messenger, **kwargs):
 			serialized_inputs["shots"],
 			serialized_inputs["layout"],
 			store_history_and_forward,
-			serialized_inputs["measurement_error_mitigation"],
+			fcls, #serialized_inputs["measurement_error_mitigation"],
 			serialized_inputs["optimization_level"]
 		)
 
@@ -567,7 +543,7 @@ def main(backend, user_messenger, **kwargs):
 			serialized_inputs["iterations"],
 			serialized_inputs["layout"],
 			store_history_and_forward_train,
-			serialized_inputs["measurement_error_mitigation"],
+			fcls, #serialized_inputs["measurement_error_mitigation"],
 			serialized_inputs["optimization_level"],
 			serialized_inputs["adam"]
 		)
@@ -583,14 +559,10 @@ def main(backend, user_messenger, **kwargs):
 
 	return serialized_result
 
-def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level,seed_transpiler,initial_layout):
-	if isinstance(circuits, list):
-		circuits = circuits.copy()
-	else:
-		circuits = [circuits]
 
+def build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_transpiler,qubits):
 	compile_config = {
-		"initial_layout": initial_layout,
+		"initial_layout": qubits,
 		"seed_transpiler": seed_transpiler,
 		"optimization_level": optimization_level,
 	}
@@ -604,113 +576,69 @@ def run_mitigated(circuits,shots,backend,error_mitigation_cls,optimization_level
 			{"timeout": None, "wait": 5.0}
 		)
 
-	skip_qobj_validation = True
 	max_job_retries = int(1e18)
-	noise_config = {}
-	callback = None
-
-	COMPLETE_MEAS_FITTER = 0
-	TENSORED_MEAS_FITTER = 1
-
 	run_config = RunConfig(shots=shots)
-	qobj = assemble(circuits,shots=shots)
-	time_taken = 0
-	meas_type = COMPLETE_MEAS_FITTER
-	if error_mitigation_cls == TensoredMeasFitter:
-		meas_type = TENSORED_MEAS_FITTER
 
-	qubit_index, qubit_mappings = (
-		get_measured_qubits_from_qobj(qobj)
+	(
+		cals_qobj,
+		state_labels,
+		circuit_labels,
+	) = build_measurement_error_mitigation_qobj(
+		qubits, #qubit_index,
+		error_mitigation_cls,
+		backend,
+		{},
+		compile_config,
+		run_config,
+		mit_pattern=None,
 	)
 
-	mit_pattern = [[i] for i in range(len(qubit_index))]
+	cals_result = run_qobj(
+		cals_qobj,
+		backend,
+		qjob_config,
+		None,
+		None,
+		True,
+		None,
+		max_job_retries
+	)
 
-	qubit_index_str = "_".join([str(x) for x in qubit_index]) + "_{}".format(shots)
-	meas_error_mitigation_fitter = None
-
-	build_cals_matrix = meas_error_mitigation_fitter is None
-
-	cal_circuits = None
-	prepended_calibration_circuits: int = 0
-	if build_cals_matrix:
-		temp_run_config = copy.deepcopy(run_config)
-		
-		(
-			cals_qobj,
-			state_labels,
-			circuit_labels,
-		) = build_measurement_error_mitigation_qobj(
-			initial_layout, #qubit_index,
-			error_mitigation_cls,
-			backend,
-			{},
-			compile_config,
-			temp_run_config,
-			mit_pattern=mit_pattern,
+	if error_mitigation_cls == CompleteMeasFitter:
+		meas_error_mitigation_fitter = error_mitigation_cls(
+			cals_result, state_labels, qubit_list=qubits, circlabel=circuit_labels
 		)
-
-		# insert the calibration circuit into main qobj if the shots are the same
-		qobj.experiments[0:0] = cals_qobj.experiments
-		result = run_qobj(
-			qobj,
-			backend,
-			qjob_config,
-			None,
-			noise_config,
-			skip_qobj_validation,
-			callback,
-			max_job_retries,
-		)
-		time_taken += result.time_taken
-		cals_result = result
-
-		if meas_type == COMPLETE_MEAS_FITTER:
-			meas_error_mitigation_fitter = error_mitigation_cls(
-			cals_result, state_labels, qubit_list=qubit_index, circlabel=circuit_labels
-			)
-		elif meas_type == TENSORED_MEAS_FITTER:
-			meas_error_mitigation_fitter = error_mitigation_cls(
+	elif error_mitigation_cls == TensoredMeasFitter:
+		meas_error_mitigation_fitter = error_mitigation_cls(
 			cals_result, mit_pattern=state_labels, circlabel=circuit_labels
-			)
+		)
+	else:
+		raise ValueError(
+			"Unknown mitigation."
+		)
 	
-	if meas_error_mitigation_fitter is not None:
-		if (
-			hasattr(run_config, "parameterizations")
-			and len(run_config.parameterizations) > 0
-			and len(run_config.parameterizations[0]) > 0
-			and len(run_config.parameterizations[0][0]) > 0
-		):
-			num_circuit_templates = len(run_config.parameterizations)
-			num_param_variations = len(run_config.parameterizations[0][0])
-			num_circuits = num_circuit_templates * num_param_variations
-		else:
-			input_circuits = circuits[prepended_calibration_circuits:]
-			num_circuits = len(input_circuits)
-		skip_num_circuits = len(result.results) - num_circuits
-		#  remove the calibration counts from result object to assure the length of
-		#  ExperimentalResult is equal length to input circuits
-		result.results = result.results[skip_num_circuits:]
-		tmp_result = copy.deepcopy(result)
-		for qubit_index_str, c_idx in qubit_mappings.items():
-			curr_qubit_index = [int(x) for x in qubit_index_str.split("_")]
-			tmp_result.results = [result.results[i] for i in c_idx]
-			
-			if curr_qubit_index == qubit_index:
-				tmp_fitter = meas_error_mitigation_fitter
-			elif meas_type == COMPLETE_MEAS_FITTER:
-				tmp_fitter = meas_error_mitigation_fitter.subset_fitter(curr_qubit_index)
-			else:
-				tmp_fitter = meas_error_mitigation_fitter
+	return meas_error_mitigation_fitter
+
+def run_mitigated(circuits,shots,backend,optimization_level,seed_transpiler,meas_error_mitigation_fitter,layout):
 	
-			tmp_result = tmp_fitter.filter.apply(
-				tmp_result, "least_squares"
-			)
-			for i, n in enumerate(c_idx):
-				# convert counts to integer and remove 0 values
-				tmp_result.results[i].data.counts = {
-					k: round(v)
-					for k, v in tmp_result.results[i].data.counts.items()
-					if round(v) != 0
-				}
-				result.results[n] = tmp_result.results[i]
+	job = backend.run(circuits, shots=shots)
+	result = job.result()
+	
+	tmp_result = copy.deepcopy(result)
+	
+	tmp_fitter = meas_error_mitigation_fitter.subset_fitter(layout)
+
+	tmp_result = tmp_fitter.filter.apply(
+		tmp_result, "least_squares"
+	)
+	
+	for i, n in enumerate(circuits):
+		# convert counts to integer and remove 0 values
+		tmp_result.results[i].data.counts = {
+			k: round(v)
+			for k, v in tmp_result.results[i].data.counts.items()
+			if round(v) != 0
+		}
+		result.results[i] = tmp_result.results[i]
+
 	return result

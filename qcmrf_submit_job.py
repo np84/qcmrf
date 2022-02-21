@@ -19,7 +19,7 @@ options = {
 if args.layout is not None:
 	layout = args.layout
 elif args.autolayout:
-	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22],'ibmq_montreal':[3,5,8,9,11,14,16,19,13,20,22,12],'ibm_washington':[51,50,49,48,47,35,46,45,44,43,42]}
+	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22],'ibmq_montreal':[3,5,8,9,11,14,16,19,13,20,22,12],'ibm_washington':[51,50,49,48,47,35,46,45,44,43,42],'ibmq_toronto':[23,24,25,22,19,20,16,14,11,8,5],'ibmq_bogota':list(range(5))}
 	layout = layouts[backend]
 else:
 	layout = None
@@ -32,7 +32,7 @@ with open('account.json', 'r') as accountfile:
 
 IBMQ.enable_account(account['token'], account['url'])
 
-if backend == 'ibmq_qasm_simulator':
+if backend == 'ibmq_qasm_simulator' or backend == 'ibmq_bogota':
 	account['project'] = 'member'
 
 provider = IBMQ.get_provider(
@@ -89,16 +89,22 @@ else:
 		"graphs": [[[0,1],[1,2]]],
 		"mu": [0.3,0,0,0.7,0.1,0.2,0.1,0.6],
 		"data": ['000','001','001','110','111','111','111','111','111','111'],
-		"iterations": 100,
+		"iterations": 50,
 		"train": True,
 		"adam": True,
 		"layout": layout,
 		"shots": 100000,
-		"measurement_error_mitigation": 2,
+		"measurement_error_mitigation": 1,
 	}
 
 	if backend == 'ibmq_qasm_simulator':
 		runtime_inputs['measurement_error_mitigation'] = 0
+		
+	elif backend == 'ibmq_montreal' or backend == 'ibmq_toronto':
+		runtime_inputs['shots'] = 32000
+		
+	elif backend == 'ibmq_bogota':
+		runtime_inputs['shots'] = 20000
 
 	job = provider.runtime.run(
 		program_id=res['program_id'],

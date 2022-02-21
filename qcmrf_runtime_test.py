@@ -11,7 +11,9 @@ def test():
 		"graphs": [[[0,1],[1,2]]],
 		"repetitions": 10,
 		"shots": 64000,
-		"optimization_level": 3
+		"optimization_level": 3,
+		"measurement_error_mitigation": 1,
+		"layout": [0,1,2,3,4]
 	}
 	user_messenger = UserMessenger()
 	serialized_inputs = json.dumps(inputs, cls=RuntimeEncoder)
