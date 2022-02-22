@@ -4,7 +4,7 @@ import os.path
 import json
 import itertools
 
-N = 100000
+N = 100_000 # number of samples
 
 def extract_probs(R,n,a=0):
 	Y = list(itertools.product([0, 1], repeat=n))
@@ -239,12 +239,8 @@ if True:
 				if len(FIDS[i]) > 0:
 					jdx = np.argmax(FIDS[i])
 					FF.append(FIDS[i][jdx]) # best over all backends for each run
-					KK.append(KLS[i][jdx]) # best over all backends for each run
-					SS.append(SRS[i][jdx]) # best over all backends for each run
-
-			v1 = (np.median(FF))
-			v2 = (np.median(KK))
-			v3 = int((np.median(SS))*N)
+					KK.append(KLS[i][jdx])  # best over all backends for each run
+					SS.append(SRS[i][jdx])  # best over all backends for each run
 			
 		else:
 			for i in range(l):
@@ -253,9 +249,9 @@ if True:
 					KK += KLS[i]
 					SS += SRS[i]
 
-			v1 = (np.median(FF))
-			v2 = (np.median(KK))
-			v3 = int((np.median(SS))*N)
+		v1 = (np.median(FF))
+		v2 = (np.median(KK))
+		v3 = int((np.median(SS))*N)
 			
 		RES[0][IDX[G]] = v1
 		RES[1][IDX[G]] = v2
@@ -295,8 +291,6 @@ if args.method == 'gibbs' or args.method == 'pam':
 	RES[0] = [0]*len(IDX) # cleanup results
 	RES[1] = [0]*len(IDX) # cleanup results
 	for idx,G in enumerate(results.keys()):
-
-		N = 100_000 # Number of raw samples
 
 		g = graphTupleToList(G)
 		print('G =',g,'N =',N)
