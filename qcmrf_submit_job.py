@@ -19,7 +19,7 @@ options = {
 if args.layout is not None:
 	layout = args.layout
 elif args.autolayout:
-	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22],'ibmq_montreal':[3,5,8,9,11,14,16,19,13,20,22,12],'ibm_washington':[51,50,49,48,47,35,46,45,44,43,42],'ibmq_toronto':[23,24,25,22,19,20,16,14,11,8,5],'ibmq_bogota':list(range(5))}
+	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22],'ibmq_montreal':[3,5,8,9,11,14,16,19,13,20,22,12],'ibm_washington':[51,50,49,48,47,35,46,45,44,43,42],'ibmq_toronto':[23,24,25,22,19,20,16,14,11,8,5],'ibmq_bogota':list(range(5)),'ibmq_guadalupe':[12,13,14,11,8,5,3,2,1,4,7],'ibmq_casablanca':[0,1,3,5,2,4,6]}
 	layout = layouts[backend]
 else:
 	layout = None
@@ -52,8 +52,8 @@ with open('models.json') as modelfile:
 #print('#GRAPHS =',len(models['graphs']))
 #for ii,G in enumerate(models['graphs']):
 #	print(G, len(models['thetas'][ii]))
-	
-TASKS = [8]
+
+TASKS = [6]
 
 if not args.train:
 	for T in TASKS:
@@ -65,19 +65,19 @@ if not args.train:
 		print('nqubits', nqubits)
 		
 		runtime_inputs = {
-				"graphs": G * len(W),
+				"graphs": [G] * len(W),
 				"repetitions": 1,
 				"shots": 100000,
 				"layout": layout[:nqubits],
 				"thetas": W,
-				"measurement_error_mitigation": 1,
+				"measurement_error_mitigation": 2,
 				"optimization_level": 3
 			}
 
 		if backend == 'ibmq_qasm_simulator':
 			runtime_inputs['measurement_error_mitigation'] = 0
 			
-		elif backend == 'ibmq_montreal' or backend == 'ibmq_toronto':
+		elif backend == 'ibmq_montreal' or backend == 'ibmq_toronto' or backend == 'ibmq_guadalupe':
 			runtime_inputs['shots'] = 32000
 		
 		elif backend == 'ibmq_bogota':

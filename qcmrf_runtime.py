@@ -18,6 +18,9 @@ from scipy.linalg import expm
 import itertools
 
 import time
+
+start_time = time.time()
+
 import copy
 
 from qiskit.opflow import I, X, Z, MatrixOp
@@ -49,11 +52,13 @@ class Publisher:
 		self._messenger = messenger
 
 	def callback(self, *args, **kwargs):
-		text = list(args)
+		text = [str("{:.4f}".format(time.time() - start_time))]
+		text = text + list(args)
 		for k, v in kwargs.items():
 			text.append({k: v})
 		self._messenger.publish(text)
 
+publisher = None
 
 # begin QCMRF
 
@@ -325,16 +330,19 @@ def extract_probs(R,n,a):
 	return P/z, z
 
 def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callback=None,error_mitigation_cls=None,optimization_level=3):
+	publisher.callback('ENTRY run(..)')
 	np.random.seed(1984)
 
 	fitter = None
 	if error_mitigation_cls is not None:
 		fitter = build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_transpiler=42,qubits=layout)
+	publisher.callback('FITTER READY')
 
 	CIRCUITS = []
 
 	for i in range(len(graphs)):
 		for j in range(repetitions):
+			publisher.callback('BUILD ['+','.join([str(int) for int in graphs[i]])+']')
 
 			beta  =  betas[i] if ( betas is not None) else 1
 			theta = thetas[i] if (thetas is not None) else None
@@ -344,15 +352,22 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 
 			CIRCUITS.append(C)
 
+	publisher.callback('BEGIN transpile(..)')
 	T = transpile(CIRCUITS, backend, optimization_level=optimization_level, seed_transpiler=42, initial_layout=layout[:C.num_vertices+C.num_cliques])
-
+	publisher.callback('DONE transpile(..)')
+	
 	if fitter is None:
+		publisher.callback('RUN CIRCUITS')
 		result = backend.run(T, shots=shots).result()
-				
+		publisher.callback('CIRCUIT RESULTS READY')
+		
 	else:
+		publisher.callback('RUN CIRCUITS MITIGATED')
 		result = run_mitigated(T, shots=shots, backend=backend, optimization_level=optimization_level, seed_transpiler=42, meas_error_mitigation_fitter=fitter, layout=layout[:C.num_vertices+C.num_cliques])
-			
+		publisher.callback('MITIGATED CIRCUIT RESULTS READY')
+		
 	for ii,C in enumerate(CIRCUITS):
+		publisher.callback('COMPUTING RESULT '+str(ii))
 
 		P, c = extract_probs(result.get_counts()[ii], C.num_vertices, C.num_cliques)
 			
@@ -364,6 +379,7 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 		callback(C.num_vertices, C.dimension, C.num_cliques, C.max_clique, np.real(fidelity(P,Q)), np.real(KL(Q,P)), c/shots, len(T[ii]), T[ii].depth(), shots, C.theta, result.get_counts()[ii])
 
 def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,error_mitigation_cls=None,optimization_level=3,adam=True):
+	publisher.callback('ENTRY train(..)')
 	np.random.seed(1984)
 	
 	fitter = None
@@ -435,7 +451,11 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,error
 
 def main(backend, user_messenger, **kwargs):
 	"""Entry function."""
-	# parse inputs
+	global publisher
+	publisher = Publisher(user_messenger)
+	publisher.callback('ENTRY main(..)')
+
+	# parse inputs	
 	mandatory = {"graphs"}
 	missing = mandatory - set(kwargs.keys())
 	if len(missing) > 0:
@@ -465,8 +485,6 @@ def main(backend, user_messenger, **kwargs):
 
 	serialized_inputs["optimization_level"] = kwargs.get("optimization_level", 3)
 	serialized_inputs["layout"] = kwargs.get("layout", None)
-
-	publisher = Publisher(user_messenger)
 	
 	history = {"n": [], "d": [], "num_cliques": [], "max_clique": [], "fidelity": [], "KL": [], "success_rate": [], "gates": [], "depth": [], "shots": [], "transpile_time": [], "prepare_time": [], "exec_time": [], "theta": [], "counts": []}
 
@@ -561,6 +579,7 @@ def main(backend, user_messenger, **kwargs):
 
 
 def build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_transpiler,qubits):
+	publisher.callback('ENTRY build_fitter(..)')
 	compile_config = {
 		"initial_layout": qubits,
 		"seed_transpiler": seed_transpiler,
@@ -620,7 +639,7 @@ def build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_tran
 	return meas_error_mitigation_fitter
 
 def run_mitigated(circuits,shots,backend,optimization_level,seed_transpiler,meas_error_mitigation_fitter,layout):
-
+	publisher.callback('ENTRY run_mitigated(..)')
 	qubit_index, qubit_mappings = get_measured_qubits(circuits)
 
 	job = backend.run(circuits, shots=shots)
