@@ -49,9 +49,9 @@ print(res)
 with open('models.json') as modelfile:
 	models = json.load(modelfile)
 
-print('#GRAPHS =',len(models['graphs']))
-for ii,G in enumerate(models['graphs']):
-	print(G, len(models['thetas'][ii]))
+#print('#GRAPHS =',len(models['graphs']))
+#for ii,G in enumerate(models['graphs']):
+#	print(G, len(models['thetas'][ii]))
 	
 TASKS = [8]
 
@@ -60,18 +60,28 @@ if not args.train:
 		G = models['graphs'][T]
 		W = models['thetas'][T]
 		print(G,len(W))
+		
+		nqubits = np.max(G) + 1 + len(G)
+		print('nqubits', nqubits)
+		
 		runtime_inputs = {
 				"graphs": G * len(W),
 				"repetitions": 1,
 				"shots": 100000,
-				"layout": layout,
+				"layout": layout[:nqubits],
 				"thetas": W,
-				"measurement_error_mitigation": 2,
+				"measurement_error_mitigation": 1,
 				"optimization_level": 3
 			}
 
 		if backend == 'ibmq_qasm_simulator':
 			runtime_inputs['measurement_error_mitigation'] = 0
+			
+		elif backend == 'ibmq_montreal' or backend == 'ibmq_toronto':
+			runtime_inputs['shots'] = 32000
+		
+		elif backend == 'ibmq_bogota':
+			runtime_inputs['shots'] = 20000
 
 		job = provider.runtime.run(
 			program_id=res['program_id'],

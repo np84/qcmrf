@@ -332,7 +332,7 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 		fitter = build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_transpiler=42,qubits=layout)
 
 	CIRCUITS = []
-	
+
 	for i in range(len(graphs)):
 		for j in range(repetitions):
 
@@ -620,25 +620,30 @@ def build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_tran
 	return meas_error_mitigation_fitter
 
 def run_mitigated(circuits,shots,backend,optimization_level,seed_transpiler,meas_error_mitigation_fitter,layout):
-	
+
+	qubit_index, qubit_mappings = get_measured_qubits(circuits)
+
 	job = backend.run(circuits, shots=shots)
 	result = job.result()
-	
-	tmp_result = copy.deepcopy(result)
-	
-	tmp_fitter = meas_error_mitigation_fitter.subset_fitter(layout)
 
-	tmp_result = tmp_fitter.filter.apply(
-		tmp_result, "least_squares"
-	)
-	
-	for i, n in enumerate(circuits):
-		# convert counts to integer and remove 0 values
-		tmp_result.results[i].data.counts = {
-			k: round(v)
-			for k, v in tmp_result.results[i].data.counts.items()
-			if round(v) != 0
-		}
-		result.results[i] = tmp_result.results[i]
+	tmp_result = copy.deepcopy(result)
+
+	for qubit_index_str, c_idx in qubit_mappings.items():
+		curr_qubit_index = [int(x) for x in qubit_index_str.split("_")]
+		tmp_result.results = [result.results[i] for i in c_idx]
+
+		tmp_fitter = meas_error_mitigation_fitter.subset_fitter(curr_qubit_index)
+
+		tmp_result = tmp_fitter.filter.apply(
+			tmp_result, 'least_squares'
+		)
+		for i, n in enumerate(c_idx):
+			# convert counts to integer and remove 0 values
+			tmp_result.results[i].data.counts = {
+				k: round(v)
+				for k, v in tmp_result.results[i].data.counts.items()
+				if round(v) != 0
+			}
+			result.results[n] = tmp_result.results[i]
 
 	return result
