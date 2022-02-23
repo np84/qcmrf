@@ -8,12 +8,12 @@ import qcmrf_runtime as qcmrf
 def test():
 	backend = Aer.get_backend('qasm_simulator')
 	inputs = {
-		"graphs": [[[0,1],[1,2]]],
+		"graphs": [[[0]]],
 		"repetitions": 10,
-		"shots": 64000,
+		"shots": 1024,
 		"optimization_level": 3,
 		"measurement_error_mitigation": 1,
-		"layout": [0,1,2,3,4]
+		"layout": [0,1]
 	}
 	user_messenger = UserMessenger()
 	serialized_inputs = json.dumps(inputs, cls=RuntimeEncoder)

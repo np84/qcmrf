@@ -30,18 +30,9 @@ from qiskit.providers.backend import Backend
 from qiskit.circuit import QuantumRegister
 from qiskit.transpiler import Layout
 from qiskit.circuit import ParameterVector
-
 from qiskit.compiler import assemble
-from qiskit.assembler.run_config import RunConfig
 from qiskit.utils.mitigation import CompleteMeasFitter, TensoredMeasFitter
-
-from qiskit.utils.run_circuits import run_qobj, run_circuits
-from qiskit.utils.measurement_error_mitigation import (
-	get_measured_qubits_from_qobj,
-	get_measured_qubits,
-	build_measurement_error_mitigation_circuits,
-	build_measurement_error_mitigation_qobj,
-)
+from qiskit.utils.measurement_error_mitigation import get_measured_qubits, build_measurement_error_mitigation_circuits
 
 from qiskit.providers.aer.backends.qasm_simulator import QasmSimulator
 
@@ -357,12 +348,12 @@ def run(backend,graphs,thetas,gammas,betas,repetitions,shots,layout=None,callbac
 	publisher.callback('DONE transpile(..)')
 	
 	if fitter is None:
-		publisher.callback('RUN CIRCUITS')
+		publisher.callback('RUN '+str(len(T))+' CIRCUITS')
 		result = backend.run(T, shots=shots).result()
 		publisher.callback('CIRCUIT RESULTS READY')
 		
 	else:
-		publisher.callback('RUN CIRCUITS MITIGATED')
+		publisher.callback('RUN '+str(len(T))+' CIRCUITS MITIGATED')
 		result = run_mitigated(T, shots=shots, backend=backend, optimization_level=optimization_level, seed_transpiler=42, meas_error_mitigation_fitter=fitter, layout=layout[:C.num_vertices+C.num_cliques])
 		publisher.callback('MITIGATED CIRCUIT RESULTS READY')
 		
@@ -583,45 +574,30 @@ def build_fitter(shots,backend,error_mitigation_cls,optimization_level,seed_tran
 	compile_config = {
 		"initial_layout": qubits,
 		"seed_transpiler": seed_transpiler,
-		"optimization_level": optimization_level,
+		"optimization_level": optimization_level
 	}
-
-	if type(backend) == QasmSimulator:
-		qjob_config = (
-			{"timeout": None}
-		)
-	else:
-		qjob_config = (
-			{"timeout": None, "wait": 5.0}
-		)
-
-	max_job_retries = int(1e18)
-	run_config = RunConfig(shots=shots)
+	publisher.callback(str(compile_config))	
+	publisher.callback(str(error_mitigation_cls),str(backend))
+	
+	publisher.callback('INITIALIZED fitter CONFIG')
 
 	(
-		cals_qobj,
+		meas_calibs_circuits,
 		state_labels,
 		circuit_labels,
-	) = build_measurement_error_mitigation_qobj(
-		qubits, #qubit_index,
-		error_mitigation_cls,
-		backend,
-		{},
-		compile_config,
-		run_config,
-		mit_pattern=None,
+	) = build_measurement_error_mitigation_circuits(
+		qubit_list=qubits,
+		fitter_cls=error_mitigation_cls,
+		backend=backend,
+		compile_config=compile_config,
+		backend_config={}
 	)
+	
+	publisher.callback('MITIGATION CIRCUITS READY')
 
-	cals_result = run_qobj(
-		cals_qobj,
-		backend,
-		qjob_config,
-		None,
-		None,
-		True,
-		None,
-		max_job_retries
-	)
+	publisher.callback('RUN '+str(len(meas_calibs_circuits))+' MITIGATION CIRCUITS')
+	cals_result = backend.run(meas_calibs_circuits, shots=shots).result()
+	publisher.callback('MITIGATION RESULTS READY')
 
 	if error_mitigation_cls == CompleteMeasFitter:
 		meas_error_mitigation_fitter = error_mitigation_cls(

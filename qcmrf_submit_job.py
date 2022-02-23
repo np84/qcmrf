@@ -19,7 +19,7 @@ options = {
 if args.layout is not None:
 	layout = args.layout
 elif args.autolayout:
-	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22],'ibmq_montreal':[3,5,8,9,11,14,16,19,13,20,22,12],'ibm_washington':[51,50,49,48,47,35,46,45,44,43,42],'ibmq_toronto':[23,24,25,22,19,20,16,14,11,8,5],'ibmq_bogota':list(range(5)),'ibmq_guadalupe':[12,13,14,11,8,5,3,2,1,4,7],'ibmq_casablanca':[0,1,3,5,2,4,6]}
+	layouts = {'ibm_auckland':[0,1,4,7,6,2,3,5,8,11,9],'ibmq_mumbai':[7,10,12,13,15,18,14,11,8,16,19],'ibm_cairo':[21,23,24,25,26,22,19,20,18,15,17,12],'ibm_hanoi':[6,7,4,1,2,3,5,8,11,9,10],'ibmq_ehningen':[10,12,13,14,16,19,20,22],'ibmq_montreal':[3,5,8,9,11,14,16,19,13,20,22,12],'ibm_washington':[51,50,49,48,47,35,46,45,44,43,42],'ibmq_toronto':[23,24,25,22,19,20,16,14,11,8,5],'ibmq_bogota':list(range(5)),'ibmq_guadalupe':[12,13,14,11,8,5,3,2,1,4,7],'ibmq_casablanca':[0,1,3,5,2,4,6],'ibmq_manila':[0,1,2,3,4]}
 	layout = layouts[backend]
 else:
 	layout = None
@@ -32,7 +32,7 @@ with open('account.json', 'r') as accountfile:
 
 IBMQ.enable_account(account['token'], account['url'])
 
-if backend == 'ibmq_qasm_simulator' or backend == 'ibmq_bogota':
+if backend == 'ibmq_qasm_simulator' or backend == 'ibmq_bogota' or backend == 'ibmq_manila':
 	account['project'] = 'member'
 
 provider = IBMQ.get_provider(
@@ -49,11 +49,11 @@ print(res)
 with open('models.json') as modelfile:
 	models = json.load(modelfile)
 
-#print('#GRAPHS =',len(models['graphs']))
-#for ii,G in enumerate(models['graphs']):
-#	print(G, len(models['thetas'][ii]))
+print('#GRAPHS =',len(models['graphs']))
+for ii,G in enumerate(models['graphs']):
+	print(ii, G, len(models['thetas'][ii]))
 
-TASKS = [6]
+TASKS = [8]
 
 if not args.train:
 	for T in TASKS:
@@ -65,12 +65,12 @@ if not args.train:
 		print('nqubits', nqubits)
 		
 		runtime_inputs = {
-				"graphs": [G] * len(W),
+				"graphs": [G]*len(W),
 				"repetitions": 1,
 				"shots": 100000,
 				"layout": layout[:nqubits],
 				"thetas": W,
-				"measurement_error_mitigation": 2,
+				"measurement_error_mitigation": 1,
 				"optimization_level": 3
 			}
 
@@ -80,7 +80,7 @@ if not args.train:
 		elif backend == 'ibmq_montreal' or backend == 'ibmq_toronto' or backend == 'ibmq_guadalupe':
 			runtime_inputs['shots'] = 32000
 		
-		elif backend == 'ibmq_bogota':
+		elif backend == 'ibmq_bogota' or backend == 'ibmq_manila':
 			runtime_inputs['shots'] = 20000
 
 		job = provider.runtime.run(
