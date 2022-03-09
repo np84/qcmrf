@@ -8,7 +8,11 @@ parser.add_argument('backend', metavar='backend', type=str, nargs=1, help='Qiski
 parser.add_argument('--layout', nargs="+", type=int, help='List of qubits')
 parser.add_argument('--auto_layout', dest='autolayout', action='store_true')
 parser.add_argument('--train', dest='train', action='store_true')
+parser.add_argument('--task', nargs="+", type=int, help='List of tasks')
 args = parser.parse_args()
+
+if not args.train and args.task is None:
+	raise ValueError(f"Either --train or --task <n> must be specified.")
 
 backend = args.backend[0]
 
@@ -53,7 +57,7 @@ print('#GRAPHS =',len(models['graphs']))
 for ii,G in enumerate(models['graphs']):
 	print(ii, G, len(models['thetas'][ii]))
 
-TASKS = [8]
+TASKS = args.task
 
 if not args.train:
 	for T in TASKS:

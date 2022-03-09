@@ -70,7 +70,7 @@ parser.add_argument('method',
                     help='The sampler. (default: %(default)s)')
 args = parser.parse_args()
 
-def graphListToTuple(G):
+def list2tuple(G):
 	temp = []
 	for C in G:
 		temp.append(tuple(C))
@@ -103,7 +103,29 @@ results = {}
 
 ################################################################################
 
-# load json files into memory
+# load models into memory
+
+with open('./models.json', 'r', encoding='utf-8') as f:
+	MODELS = json.load(f)
+
+MODELS['checksums'] = []
+MODELS['idx'] = {}
+
+for ii,G in enumerate(MODELS['graphs']):
+	MODELS['idx'][list2tuple(G)] = ii
+	L = []
+	for jj,w in enumerate(MODELS['thetas'][ii]):
+		L.append(np.sum(w))
+	MODELS['checksums'].append(L)
+
+#for ii,G in enumerate(MODELS['graphs']):
+#	print(len(MODELS['checksums'][ii]))
+#	for jj,chk in enumerate(MODELS['checksums'][ii]):
+#		print('GRAPH',G,'CHECKSUM',jj,'IS',chk)
+
+################################################################################
+
+# load results into memory
 
 pathlist = Path('.').glob('./*info*.json')
 for path in pathlist:
@@ -122,7 +144,7 @@ for path in pathlist:
 		info_f.close()
 		
 		for G in info['params']['graphs']:
-			g = graphListToTuple(G)
+			g = list2tuple(G)
 			if results.get(g) is None:
 				results[g] = []
 
@@ -131,82 +153,23 @@ for path in pathlist:
 		result_f.close()
 		
 		for i,G in enumerate(result['inputs']['graphs']):
-			g = graphListToTuple(G)
+			g = list2tuple(G)
 			r = Result(info['backend'],result,i)
+			#print('ADD RESULT',r)
 			results[g].append(r)
 
-IDX = {
-((0, 1, 2, 3),):8,
-((0, 1), (1, 2), (2, 3), (0, 3)):5,
-((0, 1), (1, 2), (2, 3), (3, 4)):4,
-((0, 1, 2),):6,
-((0, 1, 2), (2, 3, 4)):7,
-((0, 1), (1, 2), (2, 3)):3,
-((0,),):0,
-((0, 1), (1, 2)):2,
-((0, 1),):1,
-((0, 1, 2), (2, 3, 4), (4, 5, 6)):9
-}
-
-del results[((0, 1, 2), (2, 3, 4), (4, 5, 6))] # only one simulation run this graph
-del IDX[((0, 1, 2), (2, 3, 4), (4, 5, 6))]
-
 RES = np.array([[0.0]*len(IDX)]* 3).tolist() # reserve mem for results
-			
-SUM_CHECK = {} # store weight sum as a "hash" to ensure that models use same weights
-W = {} # store weights
-
-################################################################################
-
-# extract 10 weight vectors for each graph from the json dicts
-# this is used later when we compute the corresponding results
-# with Gibbs-sampling and PAM
-
-MRFs = {'graphs':[],'thetas':[]}
-
-for idx,G in enumerate(results.keys()):
-
-	g = graphTupleToList(G)
-	
-	MRFs['graphs'].append(g)
-		
-	WS = {}
-	l = 10
-	for i in range(l):
-		WS[i] = []
-		
-	TH = [None] * 10
-			
-	for jj,r in enumerate(results[G]):
-		if (r.backend == 'ibmq_montreal'): # any backend is ok. 
-			for j,w in enumerate(r.W):
-				WS[j].append(w)
-				if SUM_CHECK.get(idx) is None:
-					SUM_CHECK[idx] = {}
-					W[idx] = {}
-				if SUM_CHECK[idx].get(j) is None:
-					SUM_CHECK[idx][j] = np.sum(w)
-					W[idx][j] = w
-					TH[j] = w
-					
-	MRFs['thetas'].append(TH)
-
-with open('models.json', 'w', encoding='utf-8') as f:
-    json.dump(MRFs, f, ensure_ascii=False, indent=4)
 
 ################################################################################
 
 # extract qcmrf results from json dicts
 
-if True:
+for ii,G in enumerate(MODELS['graphs']):
+	g = graphTupleToList(G)
 
-	for idx,G in enumerate(results.keys()):
-	
-		g = graphTupleToList(G)
-
-		FIDS = {}
-		KLS  = {}
-		SRS  = {}
+	FIDS = {}
+	KLS  = {}
+	SRS  = {}
 		
 		l = 10
 		
@@ -218,14 +181,16 @@ if True:
 		for jj,r in enumerate(results[G]):
 			if (r.backend == 'ibmq_qasm_simulator' and args.method != 'qcmrf') or (r.backend != 'ibmq_qasm_simulator' and args.method == 'qcmrf'):
 				for j,f in enumerate(r.F):
-					if SUM_CHECK[idx][j] == np.sum(r.W[j]):
-						FIDS[j].append(f)
-				for j,k in enumerate(r.KL):
-					if SUM_CHECK[idx][j] == np.sum(r.W[j]):
-						KLS[j].append(k) 
-				for j,s in enumerate(r.SR):
-					if SUM_CHECK[idx][j] == np.sum(r.W[j]):
-						SRS[j].append(s)
+					h = np.sum(r.W[j]) # hash
+					wdx = None
+					for jj,ww in enumerate(MRFs['thetas'][idx]):
+						if h == np.sum(ww):
+							wdx = jj
+					assert wdx is not None
+					if not np.isnan(f):
+						FIDS[wdx].append(r.F[j])
+						KLS[wdx].append(r.KL[j]) 
+						SRS[wdx].append(r.SR[j])
 
 		if len(FIDS[0]) == 0:
 			break
@@ -237,6 +202,7 @@ if True:
 		if args.method == 'qcmrf':
 			for i in range(l):
 				if len(FIDS[i]) > 0:
+					print(g,'MRF',i,'RUNS',len(FIDS[i]))
 					jdx = np.argmax(FIDS[i])
 					FF.append(FIDS[i][jdx]) # best over all backends for each run
 					KK.append(KLS[i][jdx])  # best over all backends for each run

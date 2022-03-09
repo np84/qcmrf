@@ -11,7 +11,7 @@ def test():
 		"graphs": [[[0,1],[1,2]]],
 		"mu": [0.3,0,0,0.7,0.1,0.2,0.1,0.6],
 		"data": ['000','001','001','110','111','111','111','111','111','111'],
-		"iterations": 100,
+		"iterations": 32,
 		"train": True,
 		"adam": True,
 		"measurement_error_mitigation": 1,
