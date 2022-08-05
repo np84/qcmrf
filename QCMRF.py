@@ -197,7 +197,7 @@ class QCMRF(QuantumCircuit):
 		i = 0
 		for C in self._cliques:
 			for y in list(itertools.product([0, 1], repeat=len(C))):
-				H += -self.theta[i] * self.sufficient_statistic(C,y)
+				H += self.sufficient_statistic(C,y) * (-self.theta[i])
 				i += 1
 		return H
 
