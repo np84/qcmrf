@@ -73,7 +73,7 @@ class QCMRF(QuantumCircuit):
 				"The QCMRF parameter vector has an incorrect dimension. Expected: " + str(self._dim)
 			)
 
-		super().__init__(self._n + self._num_cliques + 1, self._n + self._num_cliques, name=name)
+		super().__init__(self._n + self._num_cliques + 1, self._n + self._num_cliques + 1, name=name)
 		
 		self._build()
 
