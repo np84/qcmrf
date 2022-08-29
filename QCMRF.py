@@ -1,19 +1,12 @@
 """A QCMRF implementation."""
 
-from typing import Dict, List, Optional, Set, Tuple
-
 import numpy as np
-
-from scipy.linalg import expm
 import itertools
 
-import copy
-
-from qiskit.opflow import I, X, Z, MatrixOp
-from qiskit.compiler import transpile
-from qiskit import QuantumCircuit
-from qiskit.circuit import QuantumRegister
-from qiskit.circuit import ParameterVector
+from qiskit.opflow import I, Z
+from qiskit import QuantumCircuit, transpile
+from qiskit.converters import circuit_to_gate
+from qiskit.circuit.library import AND
 
 # begin QCMRF
 
@@ -27,11 +20,10 @@ class QCMRF(QuantumCircuit):
 		gamma=None,
 		beta : float = 1,
 		name: str = "QCMRF",
-		qubit_hack=True,
 		with_measurements=True,
-		with_barriers=True
+		with_barriers=False
 	):
-		r"""
+		"""
 		Args:
 			cliques (List[List[int]]): List of integer lists, representing the clique structure of the
 				Markov random field. For a n-dimensional random field, variable indices 0..n-1 are required.
@@ -45,7 +37,6 @@ class QCMRF(QuantumCircuit):
 		self._gamma = gamma
 		self._beta = beta
 		self._name = name
-		self._qubit_hack = qubit_hack
 		self._with_measurements = with_measurements
 		self._with_barriers = with_barriers
 		
@@ -82,9 +73,7 @@ class QCMRF(QuantumCircuit):
 				"The QCMRF parameter vector has an incorrect dimension. Expected: " + str(self._dim)
 			)
 
-		embedding_aux = 1 if not self._qubit_hack else 0
-
-		super().__init__(self._n + self._num_cliques + embedding_aux, self._n + self._num_cliques, name=name)
+		super().__init__(self._n + self._num_cliques + 1, self._n + self._num_cliques, name=name)
 		
 		self._build()
 
@@ -152,7 +141,7 @@ class QCMRF(QuantumCircuit):
 
 	@property
 	def gamma(self):
-		"""Returns the parameters of the Circuit, computed from theta and beta.
+		"""Returns the parameters of the circuit, computed from theta and beta.
 
 		Returns:
 			List[float]: List of real-valued parameters.
@@ -174,14 +163,14 @@ class QCMRF(QuantumCircuit):
 		result = 1
 
 		plus  = [v for i,v in enumerate(C) if not y[i]] # 0
-		minus = [v for i,v in enumerate(C) if     y[i]] # 1)
+		minus = [v for i,v in enumerate(C) if     y[i]] # 1
 
 		for i in range(self._n):
 			f = I
 			if i in minus:
-				f = (I-Z)/2
+				f = (I-Z)/2 # |1><1|
 			elif i in plus:
-				f = (I+Z)/2
+				f = (I+Z)/2 # |0><0|
 
 			result = result^f
 
@@ -208,11 +197,9 @@ class QCMRF(QuantumCircuit):
 	def _build(self):
 		"""Return the actual QCMRF."""
 		
-		num_main_qubits = self._n
-		if not self._qubit_hack:
-			num_main_qubits += 1
+		num_main_qubits = self._n + 1
 
-		for i in range(num_main_qubits):
+		for i in range(self._n):
 			self.h(i)
 		if self._with_barriers:
 			self.barrier()
@@ -221,40 +208,37 @@ class QCMRF(QuantumCircuit):
 		if self._theta is None and self._gamma is None:
 			self._theta = []
 			for i in range(self._dim):
-				self._theta.append(np.random.uniform(low=-5.0,high=-0.001))
+				self._theta.append(np.random.uniform(low=-5.0,high=0))
 
 		i = 0
 		for ii,C in enumerate(self._cliques):
+			UCC = QuantumCircuit(num_main_qubits, name='U_C'+str(ii))
+			var = [(self._n-1)-v for v in C] + [self._n]
 
 			# Construct U^C(gamma(theta_C))
-			factor = I^(self._n+1)
 			for y in list(itertools.product([0, 1], repeat=len(C))):
-				Phi = self.sufficient_statistic(C,y)
-				U = (X^((I^(self._n))-Phi)) + (Z^Phi)
-				RZ = (-self.gamma[i] * Z).exp_i() ^ (I^self._n)
-				Ugam = (RZ @ U)**2
-				factor = Ugam @ factor
-				i += 1
+				flags = (np.array(y)*2-1).tolist()
 
-			# The "qubit hack" allows us to numerically remove the qubit required for
-			# the unitary embedding. This does neither alter the output distribution
-			# nor does it affect the success probability. As can be seen from extract_probs,
-			# both values for that qubit are accepted.
-			if self._qubit_hack:
-				M = factor.to_matrix()[:2**(self._n),:2**(self._n)]
-				factor = MatrixOp(M)
+				UCC.append(AND(len(C),flags),var)
+				UCC.p(2*self.gamma[i],self._n)
+				UCC.append(AND(len(C),flags),var) # UCC.reset(var)
+				i = i + 1
 
-			u = self._conjugateBlocks(factor).to_circuit().to_instruction(label='U^C('+str(ii)+')')
+			UCC = transpile(UCC, basis_gates=['cx', 'id', 'rz', 'sx', 'x'], optimization_level=0)
 
-			# intermediate transpilation
-			#u = transpile(u, basis_gates=['cx', 'id', 'rx', 'ry', 'rz', 'sx', 'x', 'y', 'z'], optimization_level=3).to_instruction(label='U^C('+str(ii)+')')
+			UC    = circuit_to_gate(UCC)
+			CUC   = UC.control(1)
+			CUCdg = UC.inverse().control(1)
 
 			# RUS for real part extraction
 			self.h(num_main_qubits + ii)
-			self.append(u, [j for j in range(num_main_qubits)]+[num_main_qubits + ii])
+			self.append(CUC, [num_main_qubits + ii] + list(range(num_main_qubits)))
+			self.x([num_main_qubits + ii])
+			self.append(CUCdg, [num_main_qubits + ii] + list(range(num_main_qubits)))
+			self.x([num_main_qubits + ii])
 			self.h(num_main_qubits + ii)
 			if self._with_measurements:
-				self.measure(num_main_qubits + ii, num_main_qubits + ii if self._qubit_hack else num_main_qubits - 1 + ii) # real part extraction successful when measure 0
+				self.measure(num_main_qubits + ii, num_main_qubits + ii) # real part extraction successful when measure 0
 			if self._with_barriers:
 				self.barrier()
 		if self._with_measurements:
