@@ -14,9 +14,9 @@ def test():
 		"iterations": 32,
 		"train": True,
 		"adam": True,
-		"measurement_error_mitigation": 1,
+		"measurement_error_mitigation": 0,
 		"shots": 64000,
-		"layout": [0,1,2,3,4]
+		"layout": [0,1,2,3,4,5]
 	}
 	user_messenger = UserMessenger()
 	serialized_inputs = json.dumps(inputs, cls=RuntimeEncoder)
