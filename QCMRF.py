@@ -6,7 +6,7 @@ import itertools
 from qiskit.opflow import I, Z
 from qiskit import QuantumCircuit, transpile
 from qiskit.converters import circuit_to_gate
-from qiskit.circuit.library import AND
+from qiskit.circuit.library import AND, CXGate, CCXGate
 
 # begin QCMRF
 
@@ -40,7 +40,7 @@ class QCMRF(QuantumCircuit):
 		self._name = name
 		self._with_measurements = with_measurements
 		self._with_barriers = with_barriers
-		self._basis = basis_gates
+		self.basis_gates = basis_gates
 		
 		if type(self._cliques) != list or type(self._cliques[0]) != list or type(self._cliques[0][0]) != int:
 			raise ValueError(
@@ -219,14 +219,27 @@ class QCMRF(QuantumCircuit):
 
 			# Construct U^C(gamma(theta_C))
 			for y in list(itertools.product([0, 1], repeat=len(C))):
-				flags = (np.array(y)*2-1).tolist()
-
-				UCC.append(AND(len(C),flags),var)
-				UCC.p(2*self.gamma[i],self._n)
-				UCC.append(AND(len(C),flags),var) # UCC.reset(var)
+				#if False: # len(C) == 1:
+				#	var = list(reversed(var))
+				#	cstate = int(''.join([str(c) for c in y]),2)
+				#	UCC.append(CXGate(ctrl_state=cstate),var)
+				#	UCC.p(2*self.gamma[i],self._n)
+				#	UCC.append(CXGate(ctrl_state=cstate),var)
+				#elif False: # len(C) == 2:
+				#	var = list(reversed(var))
+				#	cstate = int(''.join([str(c) for c in y]),2)
+				#	UCC.append(CCXGate(ctrl_state=cstate),var)
+				#	UCC.p(2*self.gamma[i],self._n)
+				#	UCC.append(CCXGate(ctrl_state=cstate),var)
+				#else:
+				if not np.isclose(self.gamma[i], 0):
+					flags = (np.array(y)*2-1).tolist()
+					UCC.append(AND(len(C),flags),var)
+					UCC.p(2*self.gamma[i],self._n)
+					UCC.append(AND(len(C),flags),var)
 				i = i + 1
 
-			UCC = transpile(UCC, basis_gates=self._basis, optimization_level=0)
+			UCC = transpile(UCC, basis_gates=self.basis_gates, optimization_level=0)
 
 			UC    = circuit_to_gate(UCC)
 			CUC   = UC.control(1)
@@ -266,6 +279,7 @@ def KL(P,Q):
 def extract_probs(R,n,a):
 	Y = list(itertools.product([0, 1], repeat=n))
 	P = np.zeros(2**n)
+	z0 = 0
 	for i,y in enumerate(Y):
 		s = ''
 		for b in y:
@@ -274,8 +288,14 @@ def extract_probs(R,n,a):
 		s0 = '0'*a + s
 
 		if s0 in R:
-			P[i] += R[s0]		
+			P[i] += R[s0]
 	z = np.sum(P)
+
+	for s0 in R:
+		z0 += R[s0]
+
+	if z == 0:
+		return P, 0
 	
-	return P/z, z
+	return P/z, z/z0
 
