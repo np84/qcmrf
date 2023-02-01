@@ -15,13 +15,14 @@ class QCMRF(QuantumCircuit):
 
 	def __init__(
 		self,
-		cliques=None,
-		theta=None,
-		gamma=None,
+		cliques = None,
+		theta = None,
+		gamma = None,
 		beta : float = 1,
 		name: str = "QCMRF",
-		with_measurements=True,
-		with_barriers=False
+		with_measurements = True,
+		with_barriers = False,
+		basis_gates = ['cx', 'id', 'rz', 'sx', 'x']
 	):
 		"""
 		Args:
@@ -39,6 +40,7 @@ class QCMRF(QuantumCircuit):
 		self._name = name
 		self._with_measurements = with_measurements
 		self._with_barriers = with_barriers
+		self._basis = basis_gates
 		
 		if type(self._cliques) != list or type(self._cliques[0]) != list or type(self._cliques[0][0]) != int:
 			raise ValueError(
@@ -224,7 +226,7 @@ class QCMRF(QuantumCircuit):
 				UCC.append(AND(len(C),flags),var) # uncomputing
 				i = i + 1
 
-			UCC = transpile(UCC, basis_gates=['cx', 'id', 'rz', 'sx', 'x'], optimization_level=0)
+			UCC = transpile(UCC, basis_gates=self._basis, optimization_level=0)
 
 			UC    = circuit_to_gate(UCC)
 			CUC   = UC.control(1)

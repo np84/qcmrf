@@ -63,7 +63,9 @@ class QCMRF(QuantumCircuit):
 		gamma=None,
 		beta : float = 1,
 		name: str = "QCMRF",
-		qubit_hack=True
+		qubit_hack=False,
+		with_measurements=True,
+		with_barriers=True
 	):
 		r"""
 		Args:
@@ -80,6 +82,8 @@ class QCMRF(QuantumCircuit):
 		self._beta = beta
 		self._name = name
 		self._qubit_hack = qubit_hack
+		self._with_measurements = with_measurements
+		self._with_barriers = with_barriers
 		
 		if type(self._cliques) != list or type(self._cliques[0]) != list or type(self._cliques[0][0]) != int:
 			raise ValueError(
@@ -116,7 +120,10 @@ class QCMRF(QuantumCircuit):
 
 		embedding_aux = 1 if not self._qubit_hack else 0
 
-		super().__init__(self._n + self._num_cliques + embedding_aux, self._n + self._num_cliques, name=name)
+		if with_measurements:
+			super().__init__(self._n + self._num_cliques + embedding_aux, self._n + self._num_cliques, name=name)
+		else:
+			super().__init__(self._n + self._num_cliques + embedding_aux, 0, name=name)
 		
 		self._build()
 
@@ -227,7 +234,8 @@ class QCMRF(QuantumCircuit):
 		i = 0
 		for C in self._cliques:
 			for y in list(itertools.product([0, 1], repeat=len(C))):
-				H += -self.theta[i] * self.sufficient_statistic(C,y)
+				#print(C,y,self.theta[i],self.sufficient_statistic(C,y))
+				H += self.sufficient_statistic(C,y) * -self.theta[i]
 				i += 1
 		return H
 
@@ -244,7 +252,8 @@ class QCMRF(QuantumCircuit):
 
 		for i in range(num_main_qubits):
 			self.h(i)
-		self.barrier()
+		if self._with_barriers:
+			self.barrier()
 
 		# init parameters uniformly if none are provided
 		if self._theta is None and self._gamma is None:
@@ -264,6 +273,9 @@ class QCMRF(QuantumCircuit):
 				Ugam = (RZ @ U)**2
 				factor = Ugam @ factor
 				i += 1
+				
+			#u = factor.to_circuit().to_instruction(label='U^C('+str(ii)+')')
+			#self.append(u, [j for j in range(num_main_qubits)])
 
 			# The "qubit hack" allows us to numerically remove the qubit required for
 			# the unitary embedding. This does neither alter the output distribution
@@ -282,10 +294,13 @@ class QCMRF(QuantumCircuit):
 			self.h(num_main_qubits + ii)
 			self.append(u, [j for j in range(num_main_qubits)]+[num_main_qubits + ii])
 			self.h(num_main_qubits + ii)
-			self.measure(num_main_qubits + ii, num_main_qubits + ii if self._qubit_hack else num_main_qubits - 1 + ii) # real part extraction successful when measure 0
-
-			self.barrier()
-		self.measure(range(self._n),range(self._n))
+			if self._with_measurements:
+				self.measure(num_main_qubits + ii, num_main_qubits + ii if self._qubit_hack else num_main_qubits - 1 + ii) # real part extraction successful when measure 0
+			if self._with_barriers:
+				self.barrier()
+		#self.measure(range(self._n),range(self._n))
+		if self._with_measurements:
+			self.measure(range(num_main_qubits),range(num_main_qubits))
 			
 # end QCMRF
 
@@ -398,7 +413,8 @@ def train(backend,graph,mu,data,shots,iterations,layout=None,callback=None,error
 		else:
 			result = run_mitigated([T], shots=shots, backend=backend, optimization_level=optimization_level, seed_transpiler=42, meas_error_mitigation_fitter=fitter, layout=layout[:C.num_vertices+C.num_cliques])
 
-		P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
+		#P, c = extract_probs(result.get_counts(), C.num_vertices, C.num_cliques)
+		P, c = extract_probs(result.get_counts(), C.num_vertices, 1)
 
 		L = 0
 		for x in data:
