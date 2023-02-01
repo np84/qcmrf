@@ -237,6 +237,7 @@ class QCMRF(QuantumCircuit):
 					UCC.append(AND(len(C),flags),var)
 					UCC.p(2*self.gamma[i],self._n)
 					UCC.append(AND(len(C),flags),var)
+
 				i = i + 1
 
 			UCC = transpile(UCC, basis_gates=self.basis_gates, optimization_level=0)
