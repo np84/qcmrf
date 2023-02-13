@@ -6,7 +6,7 @@ import itertools
 from qiskit.opflow import I, Z
 from qiskit import QuantumCircuit, transpile
 from qiskit.converters import circuit_to_gate
-from qiskit.circuit.library import AND, CXGate, CCXGate
+from qiskit.circuit.library import AND
 
 # begin QCMRF
 
