@@ -214,30 +214,17 @@ class QCMRF(QuantumCircuit):
 
 		i = 0
 		for ii,C in enumerate(self._cliques):
+			# Construct U^{C}(gamma(theta_ {C}))
 			UCC = QuantumCircuit(num_main_qubits, name='U_C'+str(ii))
 			var = [(self._n-1)-v for v in C] + [self._n]
 
-			# Construct U^C(gamma(theta_C))
 			for y in list(itertools.product([0, 1], repeat=len(C))):
-				#if False: # len(C) == 1:
-				#	var = list(reversed(var))
-				#	cstate = int(''.join([str(c) for c in y]),2)
-				#	UCC.append(CXGate(ctrl_state=cstate),var)
-				#	UCC.p(2*self.gamma[i],self._n)
-				#	UCC.append(CXGate(ctrl_state=cstate),var)
-				#elif False: # len(C) == 2:
-				#	var = list(reversed(var))
-				#	cstate = int(''.join([str(c) for c in y]),2)
-				#	UCC.append(CCXGate(ctrl_state=cstate),var)
-				#	UCC.p(2*self.gamma[i],self._n)
-				#	UCC.append(CCXGate(ctrl_state=cstate),var)
-				#else:
+				# Construct U^{C,y}(gamma(theta_ {C,y}))
 				if not np.isclose(self.gamma[i], 0):
 					flags = (np.array(y)*2-1).tolist()
 					UCC.append(AND(len(C),flags),var)
 					UCC.p(2*self.gamma[i],self._n)
 					UCC.append(AND(len(C),flags),var)
-
 				i = i + 1
 
 			UCC = transpile(UCC, basis_gates=self.basis_gates, optimization_level=0)
