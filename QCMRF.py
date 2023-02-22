@@ -215,31 +215,26 @@ class QCMRF(QuantumCircuit):
 		i = 0
 		for ii,C in enumerate(self._cliques):
 			# Construct U^{C}(gamma(theta_ {C}))
-			UCC = QuantumCircuit(num_main_qubits, name='U_C'+str(ii))
+			CUC = QuantumCircuit(num_main_qubits+1, name='cU_C'+str(ii))
 			var = [(self._n-1)-v for v in C] + [self._n]
 
 			for y in list(itertools.product([0, 1], repeat=len(C))):
 				# Construct U^{C,y}(gamma(theta_ {C,y}))
 				if not np.isclose(self.gamma[i], 0):
 					flags = (np.array(y)*2-1).tolist()
-					UCC.append(AND(len(C),flags),var)
-					UCC.p(2*self.gamma[i],self._n)
-					UCC.append(AND(len(C),flags),var)
+					CUC.append(AND(len(C),flags),var)
+					CUC.cp(2*self.gamma[i],self._n, num_main_qubits)
+					CUC.append(AND(len(C),flags),var)
 				i = i + 1
 
-			UCC = transpile(UCC, basis_gates=self.basis_gates, optimization_level=0)
-
-			UC    = circuit_to_gate(UCC)
-			CUC   = UC.control(1)
-			CUCdg = UC.inverse().control(1)
-
-			# RUS for real part extraction
+			# Real part extraction
 			self.h(num_main_qubits + ii)
-			self.append(CUC, [num_main_qubits + ii] + list(range(num_main_qubits)))
+			self.append(CUC, list(range(num_main_qubits)) + [num_main_qubits + ii])
 			self.x([num_main_qubits + ii])
-			self.append(CUCdg, [num_main_qubits + ii] + list(range(num_main_qubits)))
+			self.append(CUC.inverse(), list(range(num_main_qubits)) + [num_main_qubits + ii])
 			self.x([num_main_qubits + ii])
 			self.h(num_main_qubits + ii)
+
 			if self._with_measurements:
 				self.measure(num_main_qubits + ii, num_main_qubits + ii) # real part extraction successful when measure 0
 			if self._with_barriers:
