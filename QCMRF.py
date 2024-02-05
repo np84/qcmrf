@@ -197,7 +197,7 @@ class QCMRF(QuantumCircuit):
 		return (((I+Z)/2)^A) + (((I-Z)/2)^(~A))
 
 	def _build(self):
-		"""Return the actual QCMRF."""
+		"""Construct the actual QCMRF."""
 		
 		num_main_qubits = self._n + 1
 
