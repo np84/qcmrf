@@ -15,6 +15,7 @@ from qiskit import Aer
 
 SHOTS = 10000
 REPS = 10
+SCALE = 0.5
 
 GRAPHS = [[[0]],[[0,1]],[[0,1],[1,2],[2,3]],[[0,1],[1,2],[2,3],[3,4]],[[0,1,2]],[[0,1,2],[2,3,4]],[[0,1,2,3]]]
 THETAS = {}
@@ -26,13 +27,13 @@ for j,C in enumerate(GRAPHS):
 	d = len( px.weights(b) )
 	
 	for i in range(REPS):
-		theta = -halfnorm.rvs(loc = 0, scale = 0.25, size=d)
+		theta = -halfnorm.rvs(loc = 0, scale = SCALE, size=d)
 		if THETAS.get(j) is None:
 			THETAS[j] = []
 		THETAS[j].append( theta.tolist() )
 
 R = {'GRAPHS':GRAPHS, 'THETAS':THETAS}
-f = open('./models_0.25.json', 'w')
+f = open('./models_'+str(SCALE)+'.json', 'w')
 f.write( json.dumps(R, indent=4) )
 f.close()
 
@@ -55,9 +56,11 @@ simulator = Aer.get_backend('qasm_simulator')
 result = simulator.run(T, shots=SHOTS).result()
 counts = result.get_counts()
 
-f = open('./result_simulation_0.25.json', 'w')
+f = open('./result_simulation_'+str(SCALE)+'.json', 'w')
 f.write( json.dumps(counts, indent=4) )
 f.close()
+
+exit()
 
 options = Options()
 options.resilience_level = 1
@@ -74,7 +77,7 @@ with Session(backend=b):
 	sampler = Sampler(options=options)
 	result = sampler.run(CIRCS).result()
 
-	f = open('result_torino_0.25.json', 'w')
+	f = open('result_torino_'+str(SCALE)+'.json', 'w')
 	f.write( json.dumps(result.quasi_dists, indent=4) )
 	f.close()
 

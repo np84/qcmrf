@@ -248,7 +248,8 @@ def fidelity(P,Q):
 	"""Returns fidelity between probability mass functions, given by P and Q."""
 	F = 0
 	for i in range(len(P)):
-		F += np.sqrt(P[i] * Q[i])
+		if P[i]>0 and Q[i]>0:
+			F += np.sqrt(P[i] * Q[i])
 	return F**2
 
 def KL(P,Q):
