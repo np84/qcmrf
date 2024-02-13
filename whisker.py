@@ -156,7 +156,7 @@ axes[1].spines['right'].set_visible(False)
 
 axes[0].scatter(B[:,0],B[:,1])
 axes[0].set_xlabel('Parameter norm $\|\\bm{\\theta}\|_2$')
-axes[0].set_ylabel('Estimated success rate $\hat{\delta}$')
+axes[0].set_ylabel('Empirical success rate $\hat{\delta}$')
 
 axes[1].boxplot([WH[k] for k in WH.keys()])
 axes[1].set_xlabel('Scale $\sigma$')
