@@ -13,6 +13,7 @@ import argparse
 from prettytable import PrettyTable
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import figaspect
 
 import kiopto_native as px
 
@@ -115,7 +116,7 @@ for scale in scales:
 			mF = min(F(p,q),1)
 			mF = max(mF,0)
 			
-			w_nrm = np.linalg.norm(px.weights(b), ord=2)
+			w_nrm = np.linalg.norm(px.weights(b), ord=np.inf)
 			
 			if j == 1:
 				L_A.append((w_nrm,mF))
@@ -144,7 +145,9 @@ plt.rcParams['text.latex.preamble'] = r'''
 plt.rc('text', usetex=True)
 #plt.rc('font', family='serif')
 
-fig, axes = plt.subplots(nrows=1, ncols=2)
+width, height = figaspect(0.5)
+
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(width, height))
 
 axes[0].spines['top'].set_visible(False)
 axes[0].spines['right'].set_visible(False)
@@ -152,15 +155,15 @@ axes[0].spines['right'].set_visible(False)
 axes[1].spines['top'].set_visible(False)
 axes[1].spines['right'].set_visible(False)
 
-#plt.subplots_adjust(wspace=0.5, hspace=0.5)
+plt.subplots_adjust(wspace=0.5, hspace=0.5)
 
 axes[0].scatter(B[:,0],B[:,1])
-axes[0].set_xlabel('Parameter norm $\|\\bm{\\theta}\|_2$')
+axes[0].set_xlabel('Parameter norm $\|\\bm{\\theta}\|_{\infty}$')
 axes[0].set_ylabel('Empirical success rate $\hat{\delta}$')
 
 axes[1].boxplot([WH[k] for k in WH.keys()])
 axes[1].set_xlabel('Scale $\sigma$')
-#axes[1].set_ylabel('Estimated success rate $\hat{\delta}$')
+axes[1].set_ylabel('Estimated success rate $\hat{\delta}$')
 axes[1].set_xticklabels([str(s) for s in scales])
 
 plt.suptitle('\\texttt{'+args.backend+'}')
